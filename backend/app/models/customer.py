@@ -10,7 +10,7 @@ class Customer(db.Model):
     password_hash = db.Column(db.String(255), nullable=False) # Storing hash, not raw password
     phone_number = db.Column(db.String(15), nullable=True)
     preferred_language = db.Column(db.String(2), default='en') # e.g., 'en', 'ar'
-    store_credit_balance = db.Column(db.Decimal(10, 2), default=0.00)
+    store_credit_balance = db.Column(db.Numeric(10, 2), default=0.00)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) # Optional
 

@@ -19,5 +19,5 @@ def create_app(config_class=Config):
 
     # from .routes.products import products_bp
     # app.register_blueprint(products_bp)
-
+    from app import models
     return app
