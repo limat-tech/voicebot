@@ -1,0 +1,40 @@
+### Register a new user
+# @name registerUser
+POST http://127.0.0.1:5000/api/auth/register
+Content-Type: application/json
+
+{
+    "name": "Test User",
+    "email": "test@example.com",
+    "password": "testpassword123",
+    "phone_number": "1234567890",
+    "preferred_language": "en"
+}
+
+### Attempt to register the same user again (should fail)
+# @name registerUserAgain
+POST http://127.0.0.1:5000/api/auth/register
+Content-Type: application/json
+
+{
+    "name": "Test User",
+    "email": "test@example.com",
+    "password": "anotherpassword"
+}
+
+### Get all active products
+# @name getAllProducts
+GET http://127.0.0.1:5000/api/products
+
+### Search for products (English)
+# @name searchProductsEN
+GET http://127.0.0.1:5000/api/products/search?q=apple&language=en
+
+### Search for products (Arabic) - Assuming "تفاح" is in your seeded data
+# @name searchProductsAR
+GET http://127.0.0.1:5000/api/products/search?q=تفاح&language=ar
+
+### Search for products with a non-existent term
+# @name searchProductsNotFound
+GET http://127.0.0.1:5000/api/products/search?q=nonexistentproduct123&language=en
+
