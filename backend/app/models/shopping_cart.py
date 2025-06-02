@@ -2,6 +2,17 @@ from app import db
 from datetime import datetime
 
 class ShoppingCart(db.Model):
+    """
+    Represents a customer's shopping cart.
+
+    Typically, one active cart per customer.
+
+    Attributes:
+        cart_id (int): Primary key for the shopping cart.
+        customer_id (int): Foreign key linking to the Customer model.
+        created_at (datetime): Timestamp of when the cart was created.
+        updated_at (datetime): Timestamp of when the cart was last updated.
+    """
     __tablename__ = 'shoppingcarts' # Matches the SQL table name from the plan
 
     cart_id = db.Column(db.Integer, primary_key=True)

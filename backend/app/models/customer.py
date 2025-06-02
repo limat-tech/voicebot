@@ -2,6 +2,19 @@ from app import db # Corrected: db should be imported from the app package where
 from datetime import datetime
 
 class Customer(db.Model):
+    """
+        Represents a customer in the grocery application.
+
+        Attributes:
+            customer_id (int): Primary key for the customer.
+            name (str): Customer's full name.
+            email (str): Customer's unique email address.
+            password_hash (str): Hashed password for account security.
+            phone_number (str, optional): Customer's contact phone number.
+            preferred_language (str): Customer's preferred language (e.g., 'en', 'ar').
+            store_credit_balance (Decimal): Current store credit balance.
+            created_at (datetime): Timestamp of when the customer record was created.
+    """
     __tablename__ = 'customers'
 
     customer_id = db.Column(db.Integer, primary_key=True)

@@ -2,6 +2,17 @@ from app import db # Imports the SQLAlchemy instance from app/__init__.py
 from datetime import datetime
 
 class Category(db.Model):
+    """
+    Represents a product category.
+
+    Categories can be hierarchical (e.g., a sub-category).
+
+    Attributes:
+        category_id (int): Primary key for the category.
+        name_en (str): Name of the category in English.
+        name_ar (str): Name of the category in Arabic.
+        parent_category_id (int, optional): Foreign key to self for sub-categories.
+    """
     __tablename__ = 'categories' # Matches the SQL table name from the plan
 
     category_id = db.Column(db.Integer, primary_key=True)

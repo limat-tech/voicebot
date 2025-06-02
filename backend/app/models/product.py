@@ -2,6 +2,24 @@ from app import db
 from datetime import datetime
 
 class Product(db.Model):
+    """
+    Represents a product available for sale.
+
+    Attributes:
+        product_id (int): Primary key for the product.
+        name_en (str): Name of the product in English.
+        name_ar (str, optional): Name of the product in Arabic.
+        description_en (str, optional): Description in English.
+        description_ar (str, optional): Description in Arabic.
+        price (Decimal): Price of the product.
+        category_id (int): Foreign key linking to the Category model.
+        brand (str, optional): Brand of the product.
+        stock_quantity (int): Current stock quantity.
+        unit_type (str, optional): Unit of measurement (e.g., 'kg', 'piece').
+        image_url (str, optional): URL for the product image.
+        is_active (bool): Whether the product is currently active for sale.
+        created_at (datetime): Timestamp of when the product was added.
+    """
     __tablename__ = 'products' # Matches the SQL table name from the plan
 
     product_id = db.Column(db.Integer, primary_key=True)

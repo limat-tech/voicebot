@@ -1,13 +1,27 @@
+"""
+Product-related routes for the Flask application.
+
+Handles listing, searching, and retrieving details for products.
+"""
 from flask import Blueprint, request, jsonify
 from app.models.product import Product # Import your Product model
 # from app.models.category import Category # Not directly used in these specific endpoints but good to remember
 from app import db # Import the SQLAlchemy db instance
 from sqlalchemy import or_ # For more complex OR queries in search
+import logging
+
+logger = logging.getLogger(__name__) # Logger for this module
 
 products_bp = Blueprint('products', __name__, url_prefix='/api/products')
 
 @products_bp.route('', methods=['GET']) # Route is /api/products
 def get_products():
+    """
+    Retrieve a list of all active products.
+
+    Returns a JSON array of product objects.
+    """
+    logger.info("Fetching all active products.")
     try:
         # Query for all products that are active
         products_query = Product.query.filter_by(is_active=True).all()
@@ -28,13 +42,22 @@ def get_products():
                 "image_url": product.image_url
                 # "created_at": product.created_at.isoformat() # Optional: if you want to include it
             })
+        logger.info(f"Successfully fetched {len(result)} products.")
         return jsonify({"products": result}), 200
     except Exception as e:
         # Log the exception e here for debugging
+        logger.error("Error fetching products.", exc_info=True)
         return jsonify({"error": "An error occurred while fetching products."}), 500
 
 @products_bp.route('/search', methods=['GET']) # Route is /api/products/search
 def search_products():
+    """
+    Search for active products based on a query string.
+
+    Requires 'q' query parameter for the search term.
+    Optional 'language' query parameter ('en' or 'ar', defaults to 'en').
+    Returns a JSON array of matching product objects.
+    """
     query_param = request.args.get('q', '') # Get search query, default to empty string
     language = request.args.get('language', 'en') # Default to English
 

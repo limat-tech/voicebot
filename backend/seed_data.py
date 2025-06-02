@@ -1,4 +1,9 @@
-# backend/seed_data.py
+"""
+Script to seed the database with initial sample data.
+
+This script should be run manually to populate categories and products
+for development and testing purposes. It requires an active Flask app context.
+"""
 from app import create_app, db # To access app context and db instance
 from app.models.category import Category # Import your Category model
 from app.models.product import Product   # Import your Product model
