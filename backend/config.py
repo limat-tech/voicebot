@@ -16,7 +16,7 @@ class Config:
     Contains default settings and loads sensitive information from
     environment variables.
     """
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'a-very-secret-dev-key'
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'postgresql://grocery_user:admin@localhost/grocery_voice_app'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')

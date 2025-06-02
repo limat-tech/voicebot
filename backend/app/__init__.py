@@ -10,6 +10,7 @@ from flask_migrate import Migrate
 from config import Config
 import logging # <-- Add this import
 import sys
+from flask_jwt_extended import JWTManager
 
 _logging_configured = False 
 
@@ -26,6 +27,7 @@ def configure_logging():
 
 db = SQLAlchemy()
 migrate = Migrate()
+jwt = JWTManager()
 
 def create_app(config_class=Config):
     """
@@ -47,6 +49,7 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     migrate.init_app(app, db)
+    jwt.init_app(app)
 
     # --- Import and Register Blueprints ---
     # Import your blueprint objects here

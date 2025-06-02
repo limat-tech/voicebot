@@ -102,3 +102,24 @@ def search_products():
     except Exception as e:
         # Log the exception e here
         return jsonify({"error": "An error occurred during product search."}), 500
+
+@products_bp.route('/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    product = Product.query.get(product_id) 
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+    
+    return jsonify({
+        "product_id": product.product_id,
+        "name_en": product.name_en,
+        "name_ar": product.name_ar,
+        "description_en": product.description_en,
+        "description_ar": product.description_ar,
+        "price": float(product.price),
+        "category_id": product.category_id,
+        "brand": product.brand,
+        "stock_quantity": product.stock_quantity,
+        "unit_type": product.unit_type,
+        "image_url": product.image_url,
+        "is_active": product.is_active
+    }), 200

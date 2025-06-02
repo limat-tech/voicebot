@@ -5,7 +5,7 @@ Content-Type: application/json
 
 {
     "name": "Test User",
-    "email": "test@example.com",
+    "email": "test1@example.com",
     "password": "testpassword123",
     "phone_number": "1234567890",
     "preferred_language": "en"
@@ -21,6 +21,29 @@ Content-Type: application/json
     "email": "test@example.com",
     "password": "anotherpassword"
 }
+
+### Login User and Capture Token
+# @name loginRequest
+POST http://127.0.0.1:5000/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "test1@example.com", 
+    "password": "testpassword123"
+}
+
+### To capture the token automatically after the request:
+# This creates a file-level variable named 'authToken'
+@authToken = {{loginRequest.response.body.access_token}}
+
+# client.log("Auth Token: " + authToken) # Optional: if you want to log it in REST client output
+
+### Get User Profile (Protected Route)
+GET http://127.0.0.1:5000/api/auth/profile
+Authorization: Bearer {{authToken}}
+
+### Get a specific product by ID
+GET http://127.0.0.1:5000/api/products/1 
 
 ### Get all active products
 # @name getAllProducts

@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash # For 
 from app.models.customer import Customer # Import your Customer model
 from app import db # Import the SQLAlchemy db instance
 import logging
+from flask_jwt_extended import create_access_token,jwt_required, get_jwt_identity
 
 # Get a logger instance for this specific module
 # __name__ will usually resolve to "app.routes.auth"
@@ -82,3 +83,41 @@ def register():
         # Log the exception e here for debugging
         logger.critical(f"Database error during registration for {email}: {e}", exc_info=True) # Example CRITICAL log with exception info
         return jsonify({"error": "An error occurred while creating the user."}), 500
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({"msg": "Email and password are required"}), 400 # "msg" is common with JWT
+
+    customer = Customer.query.filter_by(email=data['email']).first()
+
+    if not customer or not check_password_hash(customer.password_hash, data['password']):
+        return jsonify({"msg": "Bad email or password"}), 401
+
+    # Create the access token. The identity can be any data that is json serializable.
+    # Using customer_id is a good choice.
+    access_token = create_access_token(identity=str(customer.customer_id))
+    print(f"--- Login successful for {data.get('email')}, token generated. ---")
+    
+    return jsonify(access_token=access_token), 200
+
+@auth_bp.route('/profile', methods=['GET'])
+@jwt_required() # This decorator protects the route
+def profile():
+    # Access the identity of the current user with get_jwt_identity
+    current_user_id = get_jwt_identity()
+    customer = Customer.query.get(current_user_id)
+
+    if not customer:
+        # This case should ideally not happen if JWT identity is valid and from your system
+        return jsonify({"msg": "User not found"}), 404
+
+    return jsonify({
+        "customer_id": customer.customer_id,
+        "name": customer.name,
+        "email": customer.email,
+        "phone_number": customer.phone_number,
+        "preferred_language": customer.preferred_language
+        # Do NOT include customer.password_hash
+    }), 200
