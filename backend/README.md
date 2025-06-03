@@ -138,5 +138,202 @@ Base URL: `http://127.0.0.1:5000/api` (during development)
             "error": "An error occurred during product search."
         }
         ```
+---
 
-(To be documented as we build)
+## Cart Endpoints (`/cart`)
+
+### 1. Add Item to Cart
+
+*   **Endpoint:** `POST /cart/add`
+*   **Description:** Adds a product to the authenticated user's cart or updates quantity if already present.
+*   **Authentication:** Required (JWT)
+*   **Request Headers:**
+    *   `Authorization: Bearer <access_token>`
+    *   `Content-Type: application/json`
+*   **Request Body (JSON):**
+    ```
+    {
+        "product_id": "integer (required)",
+        "quantity": "integer (optional, defaults to 1)"
+    }
+    ```
+*   **Example Request Body:**
+    ```
+    {
+        "product_id": 1,
+        "quantity": 2
+    }
+    ```
+*   **Success Response (200 OK):**
+    ```
+    {
+        "msg": "'Red Apples' (Qty: 2 requested) processed for cart.",
+        "cart_item_details": {
+            "cart_item_id": 5,
+            "product_id": 1,
+            "product_name": "Red Apples",
+            "updated_quantity_in_cart": 2,
+            "cart_id": 3
+        }
+    }
+    ```
+*   **Error Responses:**
+    *   `400 Bad Request` (e.g., Missing `product_id`, invalid `quantity`, insufficient stock):
+        ```
+        { "msg": "Product ID is required." }
+        // or
+        { "msg": "Insufficient stock for 'Product Name'." }
+        ```
+    *   `401 Unauthorized`: Token issues.
+    *   `404 Not Found` (e.g., Product not found):
+        ```
+        { "msg": "Product with ID X not found." }
+        ```
+    *   `500 Internal Server Error`.
+
+### 2. View Cart
+
+*   **Endpoint:** `GET /cart`
+*   **Description:** Retrieves the contents of the authenticated user's shopping cart.
+*   **Authentication:** Required (JWT)
+*   **Request Headers:**
+    *   `Authorization: Bearer <access_token>`
+*   **Success Response (200 OK - Cart with items):**
+    ```
+    {
+        "cart_id": 3,
+        "customer_id": 1,
+        "items": [
+            {
+                "cart_item_id": 5,
+                "product_id": 1,
+                "name_en": "Red Apples",
+                "name_ar": "تفاح أحمر",
+                "price_per_unit": 5.99,
+                "quantity": 2,
+                "unit_type": "kg",
+                "image_url": "https://example.com/images/red_apple.jpg",
+                "subtotal": 11.98
+            }
+            // ... more items
+        ],
+        "total_price": 11.98
+    }
+    ```
+*   **Success Response (200 OK - Empty Cart):**
+    ```
+    {
+        "cart_id": 3, // Or null
+        "msg": "Your shopping cart is empty.",
+        "items": [],
+        "total_price": 0.0
+    }
+    ```
+*   **Error Responses:**
+    *   `401 Unauthorized`: Token issues.
+    *   `500 Internal Server Error`.
+
+### 3. Update Cart Item Quantity
+
+*   **Endpoint:** `PUT /cart/items/<int:cart_item_id>`
+*   **Description:** Updates the quantity of a specific item in the cart. If quantity is 0, the item is removed.
+*   **Authentication:** Required (JWT)
+*   **Request Headers:**
+    *   `Authorization: Bearer <access_token>`
+    *   `Content-Type: application/json`
+*   **Request Body (JSON):**
+    ```
+    {
+        "quantity": "integer (required, new desired quantity, >= 0)"
+    }
+    ```
+*   **Example Request Body (Set quantity to 1):**
+    ```
+    {
+        "quantity": 1
+    }
+    ```
+*   **Success Response (200 OK - Quantity Updated):**
+    ```
+    {
+        "msg": "Quantity for cart item ID 5 updated to 1.",
+        "cart_item_details": {
+            "cart_item_id": 5,
+            "product_id": 1,
+            "product_name": "Red Apples",
+            "new_quantity": 1,
+            "cart_id": 3
+        }
+    }
+    ```
+*   **Success Response (200 OK - Item Removed due to Quantity 0):**
+    ```
+    {
+        "msg": "Cart item with ID 5 removed as quantity set to 0."
+    }
+    ```
+*   **Error Responses:**
+    *   `400 Bad Request` (e.g., Missing/invalid `quantity`, insufficient stock).
+    *   `401 Unauthorized`: Token issues.
+    *   `403 Forbidden`: Item not in user's cart.
+    *   `404 Not Found`: `cart_item_id` not found.
+    *   `500 Internal Server Error`.
+
+### 4. Remove Item from Cart
+
+*   **Endpoint:** `DELETE /cart/items/<int:cart_item_id>`
+*   **Description:** Completely removes a specific item from the authenticated user's cart.
+*   **Authentication:** Required (JWT)
+*   **Request Headers:**
+    *   `Authorization: Bearer <access_token>`
+*   **Success Response (200 OK):**
+    ```
+    {
+        "msg": "Cart item with ID 5 removed successfully."
+    }
+    ```
+*   **Error Responses:**
+    *   `401 Unauthorized`: Token issues.
+    *   `403 Forbidden`: Item not in user's cart.
+    *   `404 Not Found`: `cart_item_id` not found.
+    *   `500 Internal Server Error`.
+
+### 5. Checkout (Place Order)
+
+*   **Endpoint:** `POST /cart/checkout`
+*   **Description:** Converts the user's cart into an order, updates stock, and clears the cart.
+*   **Authentication:** Required (JWT)
+*   **Request Headers:**
+    *   `Authorization: Bearer <access_token>`
+    *   `Content-Type: application/json` (Body can be empty `{}` for this version)
+*   **Request Body (JSON):**
+    ```
+    {} // Empty for now
+    ```
+*   **Success Response (201 Created):**
+    ```
+    {
+        "msg": "Order placed successfully!",
+        "order_id": 101,
+        "total_amount": 55.99,
+        "status": "pending"
+    }
+    ```
+*   **Error Responses:**
+    *   `400 Bad Request` (e.g., Cart empty, insufficient stock during final check).
+        ```
+        { "msg": "Your shopping cart is empty. Cannot proceed to checkout." }
+        // or
+        { "msg": "Checkout process failed.", "error_details": "Insufficient stock for 'Product Name'." }
+        ```
+    *   `401 Unauthorized`: Token issues.
+    *   `500 Internal Server Error`.
+
+---
+
+### Next Steps: Order Endpoints
+
+Future development will include endpoints for:
+
+*   Listing a user's order history.
+*   Retrieving details for a specific order.
