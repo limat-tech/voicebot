@@ -4,6 +4,8 @@ from app import db
 from app.models.shopping_cart import ShoppingCart # Your ShoppingCart model
 from app.models.cart_item import CartItem       # Your CartItem model
 from app.models.product import Product
+from app.models.order import Order # Import your Order model
+from app.models.order_item import OrderItem # Import your OrderItem model
 from decimal import Decimal
 
 # from app.models.customer import Customer # Not directly queried if using JWT identity
@@ -191,3 +193,183 @@ def remove_cart_item(cart_item_id_from_url):
         return jsonify({"msg": "Error removing item from cart.", "error_details": str(e)}), 500
     
     return jsonify({"msg": f"Cart item with ID {cart_item_id_from_url} removed successfully."}), 200
+
+@cart_bp.route('/checkout', methods=['POST'])
+@jwt_required()
+def checkout():
+    current_user_id_str = get_jwt_identity()
+    try:
+        current_user_id = int(current_user_id_str)
+    except ValueError:
+        return jsonify({"msg": "Invalid user identity in token."}), 400
+
+    # 1. Retrieve the user's shopping cart
+    shopping_cart = ShoppingCart.query.filter_by(customer_id=current_user_id).first()
+
+    if not shopping_cart or not shopping_cart.items.first(): # .items is dynamic
+        return jsonify({"msg": "Your shopping cart is empty. Cannot proceed to checkout."}), 400
+
+    # 2. Final validation and data collection before creating order
+    order_items_data_for_creation = []
+    calculated_total_amount = Decimal('0.0')
+    
+    cart_items_to_process = shopping_cart.items.all() # Get all items now
+
+    # --- Start Transaction ---
+    # It's good practice to wrap order creation, stock update, and cart clearing in a try/except
+    # to ensure all operations succeed or all are rolled back.
+    try:
+        # First pass: Validate stock and collect item data
+        for cart_item in cart_items_to_process:
+            product = Product.query.with_for_update().get(cart_item.product_id) # Lock product row for stock update
+            
+            if not product:
+                # This should ideally not happen if product was in cart
+                raise Exception(f"Product with ID {cart_item.product_id} not found during checkout.") 
+            if not product.is_active:
+                raise Exception(f"Product '{product.name_en}' is no longer available.")
+            if product.stock_quantity < cart_item.quantity:
+                raise Exception(f"Insufficient stock for '{product.name_en}'. Requested: {cart_item.quantity}, Available: {product.stock_quantity}")
+
+            price_at_purchase = product.price # This is a Decimal
+            item_subtotal = price_at_purchase * cart_item.quantity
+            
+            order_items_data_for_creation.append({
+                'product_id': product.product_id,
+                'quantity': cart_item.quantity,
+                'price_at_purchase': price_at_purchase,
+                'product_ref': product # Keep reference for stock update
+            })
+            calculated_total_amount += item_subtotal
+
+        # 3. Create the Order record
+        new_order = Order(
+            customer_id=current_user_id,
+            total_amount=calculated_total_amount, # Ensure this is Decimal
+            status='pending' # Initial status
+        )
+        db.session.add(new_order)
+        db.session.flush() # To get new_order.order_id for OrderItems
+
+        # 4. Create OrderItem records and Decrement Stock
+        for item_data in order_items_data_for_creation:
+            order_item_entry = OrderItem(
+                order_id=new_order.order_id,
+                product_id=item_data['product_id'],
+                quantity=item_data['quantity'],
+                price_at_purchase=item_data['price_at_purchase']
+            )
+            db.session.add(order_item_entry)
+            
+            # Decrement stock
+            product_to_update = item_data['product_ref']
+            product_to_update.stock_quantity -= item_data['quantity']
+            # db.session.add(product_to_update) # Not strictly necessary if product_to_update is already in session
+
+        # 5. Clear the shopping cart (delete its CartItems)
+        for cart_item in cart_items_to_process:
+            db.session.delete(cart_item)
+        
+        # Optionally, delete the ShoppingCart record itself if it's always one active cart that gets emptied.
+        # db.session.delete(shopping_cart) 
+        # Or just ensure it's empty if it persists for the user.
+
+        db.session.commit()
+        # --- Transaction End ---
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Checkout failed for user {current_user_id}: {str(e)}")
+        return jsonify({"msg": "Checkout process failed.", "error_details": str(e)}), 400 # Or 500 for unexpected
+
+    return jsonify({
+        "msg": "Order placed successfully!",
+        "order_id": new_order.order_id,
+        "total_amount": float(new_order.total_amount),
+        "status": new_order.status
+    }), 201 # 201 Created for new resource (order)
+
+@cart_bp.route('/items/<int:cart_item_id_from_url>', methods=['PUT'])
+@jwt_required()
+def update_cart_item_quantity(cart_item_id_from_url):
+    """
+    Updates the quantity of a specific item in the authenticated user's shopping cart.
+    If the new quantity is 0, the item is removed.
+    Path parameter: cart_item_id_from_url (the ID of the cart item to update)
+    Expects JSON: {"quantity": <new_quantity_int>}
+    """
+    current_user_id_str = get_jwt_identity()
+    try:
+        current_user_id = int(current_user_id_str)
+    except ValueError:
+        return jsonify({"msg": "Invalid user identity in token."}), 400
+
+    data = request.get_json()
+    if not data or 'quantity' not in data:
+        return jsonify({"msg": "New quantity is required in JSON body."}), 400
+
+    try:
+        new_quantity = int(data['quantity'])
+    except ValueError:
+        return jsonify({"msg": "Quantity must be an integer."}), 400
+
+    if new_quantity < 0:
+        return jsonify({"msg": "Quantity cannot be negative."}), 400
+
+    # Find the cart item to be updated
+    cart_item_to_update = CartItem.query.get(cart_item_id_from_url)
+
+    if not cart_item_to_update:
+        return jsonify({"msg": "Cart item not found."}), 404
+
+    # Security Check: Verify the item belongs to the current user's cart
+    user_shopping_cart = ShoppingCart.query.filter_by(customer_id=current_user_id).first()
+    if not user_shopping_cart or cart_item_to_update.cart_id != user_shopping_cart.cart_id:
+        current_app.logger.warning(
+            f"Security attempt: User {current_user_id} tried to update cart_item {cart_item_id_from_url} "
+            f"not belonging to their cart."
+        )
+        return jsonify({"msg": "This item does not belong to your cart."}), 403
+
+    # Handle quantity update
+    if new_quantity == 0:
+        # If new quantity is 0, remove the item
+        try:
+            db.session.delete(cart_item_to_update)
+            db.session.commit()
+            return jsonify({"msg": f"Cart item with ID {cart_item_id_from_url} removed as quantity set to 0."}), 200
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error removing cart item {cart_item_id_from_url} (quantity 0): {str(e)}")
+            return jsonify({"msg": "Error processing cart item removal.", "error_details": str(e)}), 500
+    else:
+        # If new quantity > 0, update the quantity
+        product = Product.query.get(cart_item_to_update.product_id)
+        if not product:
+            # Should not happen if data integrity is maintained
+            return jsonify({"msg": "Associated product not found. Cannot update quantity."}), 404 
+        
+        if not product.is_active:
+             return jsonify({"msg": f"Product '{product.name_en}' is currently unavailable."}), 400
+
+        if product.stock_quantity < new_quantity:
+            return jsonify({"msg": f"Insufficient stock for '{product.name_en}'. Requested: {new_quantity}, Available: {product.stock_quantity}"}), 400
+        
+        cart_item_to_update.quantity = new_quantity
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error updating cart item {cart_item_id_from_url} quantity: {str(e)}")
+            return jsonify({"msg": "Error updating item quantity.", "error_details": str(e)}), 500
+
+        return jsonify({
+            "msg": f"Quantity for cart item ID {cart_item_id_from_url} updated to {new_quantity}.",
+            "cart_item_details": {
+                "cart_item_id": cart_item_to_update.cart_item_id, # Using your model's PK name
+                "product_id": cart_item_to_update.product_id,
+                "product_name": product.name_en,
+                "new_quantity": cart_item_to_update.quantity,
+                "cart_id": cart_item_to_update.cart_id
+            }
+        }), 200
