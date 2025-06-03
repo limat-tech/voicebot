@@ -61,3 +61,41 @@ GET http://127.0.0.1:5000/api/products/search?q=تفاح&language=ar
 # @name searchProductsNotFound
 GET http://127.0.0.1:5000/api/products/search?q=nonexistentproduct123&language=en
 
+### Add Item to Cart
+# @name addToCartRequest
+POST http://127.0.0.1:5000/api/cart/add
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "product_id": 1,
+    "quantity": 2
+}
+
+### Add Another Item or Update Quantity
+POST http://127.0.0.1:5000/api/cart/add
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "product_id": 1,
+    "quantity": 1
+}
+
+### Add a Different Item
+POST http://127.0.0.1:5000/api/cart/add
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "product_id": 2,
+    "quantity": 3
+}
+### View Cart
+GET http://127.0.0.1:5000/api/cart
+Authorization: Bearer {{authToken}}
+
+### Remove an Item from Cart
+# Replace {{cart_item_to_delete_id}} with an actual cart_item_id from your view cart response
+DELETE http://127.0.0.1:5000/api/cart/items/3
+Authorization: Bearer {{authToken}}

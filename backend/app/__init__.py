@@ -55,11 +55,13 @@ def create_app(config_class=Config):
     # Import your blueprint objects here
     from app.routes.auth import auth_bp
     from app.routes.products import products_bp
+    from app.routes.cart import cart_bp
 
     # Register the blueprints with the Flask app instance
     # This makes all routes defined in auth_bp and products_bp active
     app.register_blueprint(auth_bp)
     app.register_blueprint(products_bp)
+    app.register_blueprint(cart_bp)
     # --- End Blueprint Registration ---
 
     # This line helps discover models for Flask-Migrate and other extensions
