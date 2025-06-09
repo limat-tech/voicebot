@@ -80,7 +80,7 @@ const LoginScreen = ({ navigation }: LoginScreenProps) => {
             <Button title="Login" onPress={handleLogin} />
             <TouchableOpacity
                 style={styles.linkContainer}
-                onPress={() => navigation.navigate('Register')}
+                onPress={() => navigation.replace('Register')}
             >
                 <Text style={styles.linkText}>Don't have an account? Register</Text>
             </TouchableOpacity>

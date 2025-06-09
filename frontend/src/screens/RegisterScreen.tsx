@@ -81,7 +81,7 @@ const RegisterScreen = ({ navigation }: RegisterScreenProps) => {
 
       <TouchableOpacity
         style={styles.linkContainer}
-        onPress={() => navigation.navigate('Login')}
+        onPress={() => navigation.replace('Login')}
       >
         <Text style={styles.linkText}>Already have an account? Login</Text>
       </TouchableOpacity>
