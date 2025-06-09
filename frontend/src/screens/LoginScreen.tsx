@@ -1,3 +1,4 @@
+// VOCERY/frontend/src/screens/LoginScreen.tsx
 import React, { useState } from 'react';
 import {
     View,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CommonActions } from '@react-navigation/native'; // <-- IMPORT THIS
 
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { RootStackParamList } from '../../App';
@@ -32,22 +34,22 @@ const LoginScreen = ({ navigation }: LoginScreenProps) => {
                 password: password,
             });
 
-            const token = response.data.access_token; // Extract token
-
-            // Store the token in AsyncStorage
+            const token = response.data.access_token;
             await AsyncStorage.setItem('userToken', token);
             console.log('Token stored successfully.');
 
-            Alert.alert(
-                'Success',
-                `Logged in!`, // Removed token from alert for security
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => navigation.navigate('ProductList'), // Navigate after dismissing alert
-                    },
-                ]
+            // --- FIX IS HERE ---
+            // Instead of navigating, we dispatch a reset action.
+            // This throws away the old navigation history and creates a new one.
+            navigation.dispatch(
+                CommonActions.reset({
+                    index: 0, // The active screen is the first one in the new stack.
+                    routes: [
+                        { name: 'ProductList' }, // The new navigation history starts with ProductList.
+                    ],
+                })
             );
+
         } catch (error: any) {
             console.error('Login error:', error.response ? error.response.data : error.message);
             Alert.alert(
@@ -60,29 +62,22 @@ const LoginScreen = ({ navigation }: LoginScreenProps) => {
     return (
         <View style={styles.container}>
             <Text style={styles.title}>Login</Text>
-
             <TextInput
-                placeholder="Email"
                 style={styles.input}
+                placeholder="Email"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={email}
                 onChangeText={setEmail}
             />
-
             <TextInput
-                placeholder="Password"
                 style={styles.input}
+                placeholder="Password"
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
             />
-
-            <Button
-                title="Login"
-                onPress={handleLogin}
-            />
-
+            <Button title="Login" onPress={handleLogin} />
             <TouchableOpacity
                 style={styles.linkContainer}
                 onPress={() => navigation.navigate('Register')}

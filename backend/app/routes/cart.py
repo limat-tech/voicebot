@@ -373,3 +373,30 @@ def update_cart_item_quantity(cart_item_id_from_url):
                 "cart_id": cart_item_to_update.cart_id
             }
         }), 200
+    
+@cart_bp.route('/items/<int:item_id>', methods=['PATCH'])
+@jwt_required()
+def update_cart_item(item_id):
+    current_user_id = get_jwt_identity()
+    data = request.get_json()
+    new_quantity = data.get('quantity')
+
+    if not new_quantity or not isinstance(new_quantity, int) or new_quantity <= 0:
+        return jsonify({"error": "A valid quantity is required"}), 400
+
+    cart_item = CartItem.query.get_or_404(item_id)
+
+    # Security check: Ensure the item belongs to the current user's cart
+    cart = ShoppingCart.query.filter_by(customer_id=current_user_id, cart_id=cart_item.cart_id).first()
+    if not cart:
+        return jsonify({"error": "Item not found in your cart"}), 404
+
+    # Check stock
+    product = Product.query.get(cart_item.product_id)
+    if product.stock_quantity < new_quantity:
+        return jsonify({"error": f"Insufficient stock for {product.name_en}. Only {product.stock_quantity} available."}), 400
+
+    cart_item.quantity = new_quantity
+    db.session.commit()
+
+    return jsonify({"message": "Cart updated successfully"}), 200

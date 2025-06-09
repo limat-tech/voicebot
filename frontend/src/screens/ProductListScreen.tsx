@@ -1,5 +1,5 @@
 // VOCERY/frontend/src/screens/ProductListScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import {
     View,
     Text,
@@ -7,7 +7,8 @@ import {
     StyleSheet,
     ActivityIndicator,
     TouchableOpacity,
-    Alert
+    Alert,
+    TextInput
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,11 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { RootStackParamList } from '../../App'; // Adjust path if needed
 
-// Define a type for your product data
+// Your Product type definition
 type Product = {
-    product_id: number; // CORRECTED: Changed from productid to product_id
-    name_en: string;    // Assuming name_en from your log
-    name_ar?: string;   // Assuming name_ar
+    product_id: number;
+    name_en: string;
+    name_ar?: string;
     price: number;
     brand?: string;
     category_id?: number;
@@ -28,102 +29,151 @@ type Product = {
     image_url?: string;
     stock_quantity?: number;
     unit_type?: string;
-    // Add other product fields as defined in your API response, matching case
 };
+
 type ProductListScreenProps = StackScreenProps<RootStackParamList, 'ProductList'>;
 
 const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
     const [products, setProducts] = useState<Product[]>([]);
+    const [originalProducts, setOriginalProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
+    const [searchTerm, setSearchTerm] = useState<string>('');
 
+    // --- FIX IS HERE ---
+    // Combine both header buttons into a single useLayoutEffect call
+    useLayoutEffect(() => {
+        navigation.setOptions({
+            headerRight: () => (
+                // Wrap both buttons in a single View
+                <View style={styles.headerRightContainer}>
+                    <TouchableOpacity onPress={() => navigation.navigate('Cart')} style={styles.headerButton}>
+                        <Text style={styles.headerButtonText}>Cart</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
+                        <Text style={styles.headerButtonText}>Profile</Text>
+                    </TouchableOpacity>
+                </View>
+            ),
+        });
+    }, [navigation]);
+
+    // Effect for the initial load of all products
     useEffect(() => {
-        const fetchProducts = async () => {
+        const loadInitialData = async () => {
+            setLoading(true);
             try {
                 const token = await AsyncStorage.getItem('userToken');
                 if (!token) {
-                    Alert.alert("Authentication Error", "No token found. Please log in again.");
                     navigation.replace('Login');
                     return;
                 }
-
-                const response = await axios.get('http://10.0.2.2:5000/api/products', { // Ensure this URL is correct
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
+                const response = await axios.get('http://10.0.2.2:5000/api/products', {
+                    headers: { Authorization: `Bearer ${token}` },
                 });
-                
                 const fetchedProducts = response.data.products || response.data;
                 if (Array.isArray(fetchedProducts)) {
                     setProducts(fetchedProducts);
-                } else {
-                    console.error("Fetched products is not an array:", fetchedProducts);
-                    setProducts([]);
+                    setOriginalProducts(fetchedProducts);
                 }
-
-            } catch (error: any) {
-                console.error('Failed to fetch products:', error.response?.data || error.message);
-                Alert.alert(
-                    'Error',
-                    `Failed to fetch products: ${error.response?.data?.error || error.message}`
-                );
-                if (error.response?.status === 401) {
-                    navigation.replace('Login');
-                }
+            } catch (error) {
+                console.error('Failed to fetch initial products:', error);
             } finally {
                 setLoading(false);
             }
         };
+        loadInitialData();
+    }, []);
 
-        fetchProducts();
-    }, [navigation]);
+    // Effect for handling search
+    useEffect(() => {
+        if (searchTerm.trim() === '') {
+            setProducts(originalProducts);
+            return;
+        }
+        const handleSearch = async () => {
+            try {
+                const token = await AsyncStorage.getItem('userToken');
+                if (!token) { return; }
+                const response = await axios.get(`http://10.0.2.2:5000/api/products/search?q=${encodeURIComponent(searchTerm)}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setProducts(response.data.products || response.data);
+            } catch (error) {
+                console.error("Search failed:", error);
+                setProducts([]);
+            }
+        };
+        const delayDebounceFn = setTimeout(() => {
+            handleSearch();
+        }, 300);
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchTerm, originalProducts]);
 
     const renderItem = ({ item }: { item: Product }) => (
-        <TouchableOpacity 
+        <TouchableOpacity
             style={styles.itemContainer}
-            // Placeholder action, will be updated for ProductDetail screen
-            onPress={() => Alert.alert("Product Clicked", `You clicked on ${item.name_en}`)}
+            onPress={() => navigation.navigate('ProductDetail', { productId: item.product_id })}
         >
             <Text style={styles.itemName}>{item.name_en}</Text>
             <Text style={styles.itemPrice}>Price: ${item.price ? item.price.toFixed(2) : 'N/A'}</Text>
-            {/* You can add item.brand here if you want */}
         </TouchableOpacity>
     );
 
-    // Removed the extra console.log for products here as you've provided the output
-
-    if (loading) {
-        return (
-            <View style={styles.loader}>
-                <ActivityIndicator size="large" color="#0000ff" />
-                <Text>Loading products...</Text>
-            </View>
-        );
-    }
-
     return (
-        <FlatList
-            data={products}
-            renderItem={renderItem}
-            keyExtractor={(item, index) => {
-                // Accessing item.product_id (snake_case)
-                if (item && item.product_id != null) { // CORRECTED: Changed to product_id
-                    return item.product_id.toString();
-                }
-                // Fallback if product_id is missing
-                console.warn(`Product at index ${index} is missing a product_id or item is null/undefined:`, item);
-                return `product-fallback-${index}`; 
-            }}
-            contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No products found.</Text>
-                </View>
-            }
-        />
+        <View style={styles.container}>
+            <TextInput
+                style={styles.searchInput}
+                placeholder="Search for products..."
+                value={searchTerm}
+                onChangeText={setSearchTerm}
+                clearButtonMode="while-editing"
+            />
+            {loading ? (
+                <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20 }} />
+            ) : (
+                <FlatList
+                    data={products}
+                    renderItem={renderItem}
+                    keyExtractor={(item) => item.product_id.toString()}
+                    contentContainerStyle={styles.listContainer}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>No products found.</Text>
+                        </View>
+                    }
+                />
+            )}
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    // --- ADDED STYLES FOR HEADER BUTTONS ---
+    headerRightContainer: {
+        flexDirection: 'row',
+        marginRight: 10,
+    },
+    headerButton: {
+        marginLeft: 15, // Space between buttons
+    },
+    headerButtonText: {
+        color: '#fff',
+        fontSize: 16,
+    },
+    // ---
+    searchInput: {
+        height: 45,
+        borderColor: '#ddd',
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 15,
+        margin: 10,
+        backgroundColor: '#fff',
+        fontSize: 16,
+    },
     listContainer: {
         paddingHorizontal: 10,
         paddingBottom: 10,
