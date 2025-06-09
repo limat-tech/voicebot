@@ -24,6 +24,6 @@ A voice-assisted grocery ordering system supporting English and Arabic.
 ## Current Status
 
 - [x] Project structure created
-- [ ] Backend setup
-- [ ] Frontend setup
+- [x] Backend setup
+- [x] Frontend setup
 - [ ] Voice integration
