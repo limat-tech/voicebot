@@ -128,3 +128,12 @@ Authorization: Bearer {{authToken}}
 Content-Type: application/json
 # You could optionally send payment info here in a real app, but not for this basic version
 # {} 
+
+### Voice Processing
+POST http://127.0.0.1:5000/api/voice/process
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "transcript": "I am looking for some apples"
+}
