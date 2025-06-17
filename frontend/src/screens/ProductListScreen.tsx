@@ -1,4 +1,3 @@
-// VOCERY/frontend/src/screens/ProductListScreen.tsx
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import {
     View,
@@ -14,14 +13,12 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Voice imports
-import Voice, { SpeechResultsEvent, SpeechErrorEvent } from '@react-native-voice/voice';
-
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { RootStackParamList } from '../../App';
 
-// Product type definition
+const audioRecorderPlayer = new AudioRecorderPlayer();
+
 type Product = {
     product_id: number;
     name_en: string;
@@ -39,101 +36,96 @@ type Product = {
 type ProductListScreenProps = StackScreenProps<RootStackParamList, 'ProductList'>;
 
 const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
-    // Existing state
     const [products, setProducts] = useState<Product[]>([]);
     const [originalProducts, setOriginalProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [searchTerm, setSearchTerm] = useState<string>('');
+    const [isRecording, setIsRecording] = useState(false);
+    const [statusMessage, setStatusMessage] = useState('Tap microphone to speak');
 
-    // Voice state management
-    const [isListening, setIsListening] = useState(false);
-    const [recognizedText, setRecognizedText] = useState('');
-    const [voiceError, setVoiceError] = useState('');
-    const [voiceAvailable, setVoiceAvailable] = useState(false);
-    const [serverResponse, setServerResponse] = useState('');
-
-    // Permission request function
-    const requestMicrophonePermission = async () => {
+    const requestPermissions = async () => {
         if (Platform.OS === 'android') {
             try {
                 const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-                    {
-                        title: 'Microphone Permission',
-                        message: 'This app needs access to your microphone for voice search.',
-                        buttonPositive: 'OK',
-                    }
+                    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
                 );
-                return granted === PermissionsAndroid.RESULTS.GRANTED;
+                if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+                    console.log('RECORD_AUDIO permission granted');
+                    return true;
+                } else {
+                    console.log('RECORD_AUDIO permission denied');
+                    return false;
+                }
             } catch (err) {
                 console.warn('Permission request error:', err);
                 return false;
             }
         }
-        return true; // iOS or other platforms
+        return true;
     };
 
-    // Enhanced start/stop listening functions
-    const startListening = async () => {
-        if (!voiceAvailable) {
-            Alert.alert('Voice Not Available', 'Voice recognition is not available on this device.');
-            return;
-        }
-
-        // Prevent starting if already listening
-        if (isListening) {
-            console.log('Already listening, ignoring start request');
-            return;
-        }
-
-        const hasPermission = await requestMicrophonePermission();
+    const startRecording = async () => {
+        const hasPermission = await requestPermissions();
         if (!hasPermission) {
-            Alert.alert('Permission Required', 'Microphone permission is required for voice search.');
+            Alert.alert('Permission Required', 'Microphone permission is needed to record audio.');
             return;
         }
-
+        setIsRecording(true);
+        setStatusMessage('Recording...');
         try {
-            // Ensure clean state before starting
-            await Voice.stop();
-            
-            setRecognizedText('');
-            setVoiceError('');
-            
-            // Wait a brief moment before starting
-            setTimeout(async () => {
-                try {
-                    await Voice.start('en-US');
-                } catch (startError) {
-                    console.error('Error starting voice after cleanup:', startError);
-                    setVoiceError('Failed to start voice recognition');
-                    setIsListening(false);
-                }
-            }, 500);
-            
-        } catch (error) {
-            console.error('Error starting voice:', error);
-            setVoiceError('Failed to start voice recognition');
-            setIsListening(false);
+            const result = await audioRecorderPlayer.startRecorder();
+            audioRecorderPlayer.addRecordBackListener((e) => {
+                setStatusMessage(`Recording... ${e.currentPosition.toFixed(1)}s`);
+                return;
+            });
+            console.log(`Recording started: ${result}`);
+        } catch (e) {
+            console.error('Failed to start recording', e);
+            setStatusMessage('Error: Could not start recording');
+            setIsRecording(false);
         }
     };
 
-    const stopListening = async () => {
+    const stopRecording = async () => {
+        setIsRecording(false);
+        setStatusMessage('Processing...');
         try {
-            await Voice.stop();
-            await Voice.cancel(); // Also cancel any pending recognition
-        } catch (error) {
-            console.error('Error stopping voice:', error);
-            // Force cleanup even if stop fails
-            try {
-                await Voice.destroy();
-            } catch (destroyError) {
-                console.error('Error destroying voice after stop failure:', destroyError);
+            const resultPath = await audioRecorderPlayer.stopRecorder();
+            audioRecorderPlayer.removeRecordBackListener();
+            console.log(`Recording stopped. File is at: ${resultPath}`);
+            handleVoiceUpload(resultPath);
+        } catch (e) {
+            console.error('Failed to stop recording', e);
+            setStatusMessage('Error: Could not save recording');
+        }
+    };
+
+    const handleVoiceUpload = async (filePath: string) => {
+        const formData = new FormData();
+        const fileUri = Platform.OS === 'android' ? `file://${filePath}` : filePath;
+        formData.append('audio', {
+            uri: fileUri,
+            type: 'audio/mp4',
+            name: 'voice_command.mp4',
+        });
+        try {
+            const API_URL = 'http://10.0.2.2:5000/api/voice/process';
+            console.log(`Uploading audio from URI: ${fileUri}`);
+            const response = await axios.post(API_URL, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            console.log('Full AI Pipeline Response:', response.data);
+            const { transcript, intent, entities } = response.data;
+            setStatusMessage(`Heard: "${transcript}"`);
+            if (intent === 'search_product' && entities && entities.length > 0) {
+                setSearchTerm(entities[0].value);
             }
+        } catch (error) {
+            console.error('Error uploading audio:', error);
+            setStatusMessage('Error: Could not process request.');
         }
-        setIsListening(false);
     };
 
-    // Navigation header setup
     useLayoutEffect(() => {
         navigation.setOptions({
             headerRight: () => (
@@ -149,141 +141,6 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
         });
     }, [navigation]);
 
-    // Voice availability check
-    useEffect(() => {
-        const checkVoiceAvailability = async () => {
-            try {
-                const available = await Voice.isAvailable();
-                setVoiceAvailable(!!available);
-                if (!available) {
-                    setVoiceError('Voice recognition not available on this device');
-                }
-                console.log('Voice availability:', !!available);
-            } catch (error) {
-                console.error('Voice availability check failed:', error);
-                setVoiceError('Failed to initialize voice services');
-                setVoiceAvailable(false);
-            }
-        };
-
-        checkVoiceAvailability();
-    }, []);
-
-    // Enhanced voice event listeners with robust error handling
-    useEffect(() => {
-        // Voice event handlers
-        const onSpeechStart = (e: any) => {
-            console.log('Voice started:', e);
-            setIsListening(true);
-            setVoiceError('');
-        };
-
-        const onSpeechEnd = (e: any) => {
-            console.log('Voice ended:', e);
-            setIsListening(false);
-        };
-
-        const onSpeechError = async (e: SpeechErrorEvent) => {
-        console.error('Voice error:', e);
-        
-        // Handle the specific "RecognitionService busy" error (Code 8)
-        if (e.error?.code === '8' || e.error?.message?.includes('RecognitionService busy')) {
-            console.log('Recognition service is busy, attempting cleanup and retry...');
-            
-            try {
-                await Voice.destroy();
-                
-                setTimeout(async () => {
-                    try {
-                        await Voice.removeAllListeners();
-                        setIsListening(false);
-                        setVoiceError('Voice service reset. Please try again.');
-                        
-                        // Re-setup the listeners
-                        Voice.onSpeechStart = onSpeechStart;
-                        Voice.onSpeechEnd = onSpeechEnd;
-                        Voice.onSpeechError = onSpeechError;
-                        Voice.onSpeechResults = onSpeechResults;
-                        
-                    } catch (reinitError) {
-                        console.error('Failed to reinitialize voice service:', reinitError);
-                        setVoiceError('Voice service failed to reset. Please restart the app.');
-                    }
-                }, 1000);
-                
-            } catch (destroyError) {
-                console.error('Failed to destroy voice service:', destroyError);
-                setVoiceError('Please restart the app to reset voice service.');
-            }
-        } 
-        // Handle "Client side error" (Code 5) - NON-CRITICAL
-        else if (e.error?.code === '5' || e.error?.message?.includes('Client side error')) {
-            console.log('Client side error detected - this is usually non-critical');
-            
-            // Since voice recognition still works, just log the error and continue
-            // Don't show error to user since functionality is not impacted
-            setIsListening(false);
-            
-            // Clear any previous error messages since this is recoverable
-            setTimeout(() => {
-                setVoiceError('');
-            }, 2000); // Clear after 2 seconds
-        } 
-        // Handle all other speech errors
-        else {
-            setVoiceError(e.error?.message || 'Speech recognition error');
-            setIsListening(false);
-        }
-    };
-
-        const onSpeechResults = async (e: SpeechResultsEvent) => {
-            console.log('Voice results:', e);
-            if (e.value && e.value.length > 0) {
-                const spokenText = e.value[0];
-                setRecognizedText(spokenText);
-                setSearchTerm(spokenText); // Connect to existing search functionality
-
-                try {
-                    console.log(`Sending transcript to backend: "${spokenText}"`);
-                    const response = await axios.post('http://10.0.2.2:5000/api/voice/process', {
-                        transcript: spokenText
-                    });
-                    
-                    if (response.data && response.data.responseText) {
-                        console.log('Backend response:', response.data.responseText);
-                        setServerResponse(response.data.responseText);
-                    }
-                } catch (error) {
-                    console.error('Error calling voice processing API:', error);
-                    setServerResponse('Could not connect to the server.');
-                }
-            }
-        };
-
-        // Set up voice listeners
-        Voice.onSpeechStart = onSpeechStart;
-        Voice.onSpeechEnd = onSpeechEnd;
-        Voice.onSpeechError = onSpeechError;
-        Voice.onSpeechResults = onSpeechResults;
-
-        return () => {
-            // More thorough cleanup
-            const cleanup = async () => {
-                try {
-                    await Voice.stop();
-                    await Voice.cancel();
-                    await Voice.destroy();
-                    Voice.removeAllListeners();
-                } catch (error) {
-                    console.error('Error during voice cleanup:', error);
-                }
-            };
-            
-            cleanup();
-        };
-    }, []);
-
-    // Initial data loading effect
     useEffect(() => {
         const loadInitialData = async () => {
             setLoading(true);
@@ -308,9 +165,8 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
             }
         };
         loadInitialData();
-    }, []);
+    }, [navigation]);
 
-    // Search handling effect
     useEffect(() => {
         if (searchTerm.trim() === '') {
             setProducts(originalProducts);
@@ -349,7 +205,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
         <View style={styles.container}>
             <TextInput
                 style={styles.searchInput}
-                placeholder="Search for products or use voice..."
+                placeholder="Search or use voice..."
                 value={searchTerm}
                 onChangeText={setSearchTerm}
                 clearButtonMode="while-editing"
@@ -370,25 +226,17 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
                 />
             )}
             
-            {/* Voice UI Container */}
             <View style={styles.voiceContainer}>
                 <TouchableOpacity 
-                    onPress={isListening ? stopListening : startListening} 
-                    style={[styles.micButton, isListening && styles.micButtonActive]}
-                    disabled={!voiceAvailable}
+                    onPress={isRecording ? stopRecording : startRecording} 
+                    style={[styles.micButton, isRecording && styles.micButtonActive]}
                 >
                     <Text style={styles.micButtonText}>
-                        {isListening ? 'STOP' : 'MIC'}
+                        {isRecording ? 'STOP' : 'MIC'}
                     </Text>
                 </TouchableOpacity>
                 
-                <Text style={styles.voiceStatusText}>
-                    {serverResponse ? serverResponse :
-                     isListening ? 'Listening...' : 
-                     voiceError ? `Error: ${voiceError}` : 
-                     recognizedText ? `"${recognizedText}"` : 
-                     voiceAvailable ? 'Tap microphone to speak' : 'Voice not available'}
-                </Text>
+                <Text style={styles.voiceStatusText}>{statusMessage}</Text>
             </View>
         </View>
     );
@@ -422,7 +270,7 @@ const styles = StyleSheet.create({
     },
     listContainer: {
         paddingHorizontal: 10,
-        paddingBottom: 150, // Make room for voice UI
+        paddingBottom: 150,
     },
     itemContainer: {
         backgroundColor: '#fff',
@@ -455,7 +303,6 @@ const styles = StyleSheet.create({
         fontSize: 18,
         color: '#888',
     },
-    // Voice UI Styles
     voiceContainer: {
         position: 'absolute',
         bottom: 0,
