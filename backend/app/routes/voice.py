@@ -1,28 +1,62 @@
+# app/routes/voice.py
 from flask import Blueprint, request, jsonify
+from app.services.asr_service import WhisperASRService
+from app.services.nlu_service import RasaNLUService
+import os
+import tempfile
 
-# Create a new Blueprint for voice-related routes
+
 voice_bp = Blueprint('voice', __name__, url_prefix='/api/voice')
 
+# --- Industrial Practice: Service Initialization ---
+# In a real production app, you would use a more robust way to ensure
+# these services are created only once (e.g., using Flask's application factory pattern).
+# For now, creating them when the blueprint is loaded is a great start.
+print("Initializing AI services for the voice blueprint...")
+asr_service = WhisperASRService()
+nlu_service = RasaNLUService()
+print("AI services initialized.")
+
+
 @voice_bp.route('/process', methods=['POST'])
-def process_voice_command():
-    # Get the transcribed text from the request body
-    data = request.get_json()
-    if not data or 'transcript' not in data:
-        return jsonify({"error": "Missing transcript in request body"}), 400
+def process_voice():
+    # Step 1: Check if an audio file was sent
+    if 'audio' not in request.files:
+        return jsonify({"error": "No audio file part in the request"}), 400
 
-    transcript = data['transcript'].lower()
+    audio_file = request.files['audio']
+    if audio_file.filename == '':
+        return jsonify({"error": "No selected audio file"}), 400
 
-    # --- This is where your mock logic from the plan goes ---
-    if 'apple' in transcript:
-        response_text = "I found 5 apple products. Would you like to add any to your cart?"
-    elif 'milk' in transcript:
-        response_text = "Here are the milk options available."
-    else:
-        response_text = "Sorry, I didn't understand that. Please try again."
-    # --- End of mock logic ---
+    # Step 2: Save the audio to a temporary file
+    # We use a temporary file because Whisper's transcribe function expects a file path.
+    # 'delete=False' is important so we can close it and still use its path.
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+        audio_file.save(temp_audio.name)
+        temp_audio_path = temp_audio.name
 
-    # Return the response as defined in the plan
+    transcript = None
+    nlu_result = None
+    
+    try:
+        # --- Step 3: ASR - Transcribe audio to text ---
+        transcript = asr_service.transcribe(temp_audio_path)
+        
+        # --- Step 4: NLU - Parse text for intent and entities ---
+        if transcript:
+            nlu_result = nlu_service.parse(transcript)
+
+    finally:
+        # --- Step 5: Cleanup - Always remove the temporary file ---
+        os.remove(temp_audio_path)
+
+    if not transcript or not nlu_result:
+        return jsonify({"error": "Failed to process audio command"}), 500
+
+    # Step 6: Return the full, structured result
     return jsonify({
-        "responseText": response_text,
-        "audioUrl": None  # Placeholder for future TTS functionality
-    })
+        "transcript": transcript,
+        "intent": nlu_result.get("intent", {}).get("name"),
+        "entities": nlu_result.get("entities", []),
+        "confidence": nlu_result.get("intent", {}).get("confidence")
+    }), 200

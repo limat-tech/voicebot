@@ -1,0 +1,41 @@
+{
+  "text": {
+    "find": 8,
+    "apples": 1,
+    "search": 22,
+    "for": 9,
+    "milk": 16,
+    "i": 11,
+    "need": 18,
+    "bread": 3,
+    "show": 23,
+    "me": 15,
+    "oranges": 20,
+    "do": 6,
+    "you": 28,
+    "have": 10,
+    "eggs": 7,
+    "look": 14,
+    "cheese": 5,
+    "add": 0,
+    "this": 24,
+    "to": 25,
+    "my": 17,
+    "cart": 4,
+    "want": 26,
+    "one": 19,
+    "put": 21,
+    "it": 13,
+    "in": 12,
+    "basket": 2,
+    "yes": 27
+  },
+  "intent": {
+    "search_product": 1,
+    "add_to_cart": 0
+  },
+  "response": null,
+  "action_name": null,
+  "action_text": null,
+  "intent_response_key": null
+}

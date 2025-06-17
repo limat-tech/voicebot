@@ -1,0 +1,19 @@
+# rasa/data/nlu.yml
+version: "3.1"
+
+nlu:
+- intent: search_product
+  examples: |
+    - find [apples](product_name)
+    - search for [milk](product_name)
+    - I need [bread](product_name)
+    - show me [oranges](product_name)
+    - do you have [eggs](product_name)
+    - look for [cheese](product_name)
+
+- intent: add_to_cart
+  examples: |
+    - add this to my cart
+    - I want this one
+    - put it in my basket
+    - yes add it

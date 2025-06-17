@@ -1,0 +1,10 @@
+# rasa/domain.yml
+version: "3.1"
+
+intents:
+  - search_product
+  - add_to_cart
+
+entities:
+  - product_name
+  
