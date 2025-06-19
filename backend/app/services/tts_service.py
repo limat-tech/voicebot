@@ -23,7 +23,6 @@ class MaryTTSService:
             "AUDIO": "WAVE_FILE",
             "LOCALE": language,
             "INPUT_TEXT": text,
-            "VOICE": "cmu-slt-hsmm" # A standard, good-quality voice
         }
 
         try:
