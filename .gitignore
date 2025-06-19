@@ -8,6 +8,7 @@ env/
 venv/
 ENV/
 .venv/
+tts-env/
 pip-log.txt
 pip-delete-this-directory.txt
 
@@ -23,6 +24,7 @@ instance/
 # Database
 *.db
 *.sqlite3
+
 
 # Node.js (for React Native later)
 node_modules/
