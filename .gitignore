@@ -11,7 +11,7 @@ ENV/
 tts-env/
 pip-log.txt
 pip-delete-this-directory.txt
-tts_output/
+backend/app/tts_output/
 
 # Flask
 instance/

@@ -43,15 +43,17 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [isRecording, setIsRecording] = useState(false);
+    // Re-instating two separate states for a better UI
     const [statusMessage, setStatusMessage] = useState('Tap microphone to speak');
     const [transcriptMessage, setTranscriptMessage] = useState('');
 
+    // Robust audio playback with defensive listener
     const playAudioFromUrl = async (url: string) => {
         setStatusMessage('Playing response...');
         try {
             await audioRecorderPlayer.startPlayer(url);
             audioRecorderPlayer.addPlayBackListener((e) => {
-                if (e.currentPosition > 0 && e.currentPosition >= e.duration) {
+                if (e.duration > 0 && e.currentPosition >= e.duration) {
                     audioRecorderPlayer.stopPlayer();
                     audioRecorderPlayer.removePlayBackListener();
                     setStatusMessage('Tap microphone to speak');
@@ -63,6 +65,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
         }
     };
     
+    // Recording logic
     const startRecording = async () => {
         const hasPermission = await requestPermissions();
         if (!hasPermission) {
@@ -95,6 +98,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
         }
     };
 
+    // API Communication with fixes for UI and audio playback
     const handleVoiceUpload = async (filePath: string) => {
         const formData = new FormData();
         formData.append('audio', {
@@ -121,14 +125,19 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
                 timeout: 30000, 
             });
             
-            const { nlu_result, response_text, audio_filename } = response.data;
+            const { nlu_result, audio_filename } = response.data;
             
-            if (nlu_result.transcript) {
+            // Set the persistent transcript message
+            if (nlu_result && nlu_result.transcript) {
                 setTranscriptMessage(`Heard: "${nlu_result.transcript}"`);
+            } else {
+                setTranscriptMessage("Sorry, I couldn't understand that.");
             }
+            // Clear the status message, as the transcript now provides the primary feedback
+            setStatusMessage('');
 
-            const intent = nlu_result.intent.name;
-            const productEntity = nlu_result.entities.find(e => e.entity === 'product_name');
+            const intent = nlu_result?.intent?.name;
+            const productEntity = nlu_result?.entities?.find(e => e.entity === 'product_name');
 
             if (intent === 'search_product' && productEntity) {
                 setSearchTerm(productEntity.value);
@@ -136,13 +145,15 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
 
             if (audio_filename) {
                 const audioUrl = `${API_BASE_URL}/audio/${audio_filename}`;
-                playAudioFromUrl(audioUrl);
+                // Use a timeout to prevent re-renders from interrupting the player
+                setTimeout(() => playAudioFromUrl(audioUrl), 100);
             } else {
-                setStatusMessage(response_text || "Action complete.");
+                setTimeout(() => setStatusMessage('Tap microphone to speak'), 4000);
             }
 
         } catch (error) {
             console.error('Error during voice processing:', error);
+            setTranscriptMessage(''); // Clear transcript on error
             if (axios.isAxiosError(error) && error.response?.status === 401) {
                 setStatusMessage('Session expired. Please log in again.');
                 navigation.replace('Login');
@@ -152,6 +163,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
         }
     };
     
+    // --- Unchanged Code Below ---
     const requestPermissions = async () => {
         if (Platform.OS === 'android') {
             try {
@@ -248,13 +260,9 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f8f8f8' },
     headerRightContainer: { flexDirection: 'row', marginRight: 10 },
     headerButton: { marginLeft: 15 },
-    // --- MODIFICATION: Removed the color property ---
-    // The color will now be inherited from the navigator's headerTintColor.
-    headerButtonText: {
-        fontSize: 16,
-    },
+    headerButtonText: { fontSize: 16 },
     searchInput: { height: 45, borderColor: '#ddd', borderWidth: 1, borderRadius: 8, paddingHorizontal: 15, margin: 10, backgroundColor: '#fff', fontSize: 16 },
-    listContainer: { paddingHorizontal: 10, paddingBottom: 150 },
+    listContainer: { paddingHorizontal: 10, paddingBottom: 160 },
     itemContainer: { backgroundColor: '#fff', padding: 15, marginVertical: 8, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41 },
     itemName: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     itemPrice: { fontSize: 16, color: 'green', marginTop: 5 },
@@ -263,15 +271,21 @@ const styles = StyleSheet.create({
     micButton: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginBottom: 10, elevation: 5 },
     micButtonActive: { backgroundColor: '#FF3B30' },
     micButtonText: { fontSize: 16, fontWeight: 'bold', color: 'white' },
-    voiceStatusText: { fontSize: 14, color: '#666', textAlign: 'center', fontStyle: 'italic', marginBottom: 5 },
+    voiceStatusText: { 
+        minHeight: 20,
+        fontSize: 14,
+        color: '#666',
+        textAlign: 'center',
+        fontStyle: 'italic',
+    },
     transcriptText: {
         marginTop: 5,
-        fontSize: 15,
+        fontSize: 16,
         color: '#000',
         textAlign: 'center',
         fontWeight: '500',
+        paddingHorizontal: 10,
     },
 });
 
 export default ProductListScreen;
-
