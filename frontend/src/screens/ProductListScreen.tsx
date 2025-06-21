@@ -22,15 +22,17 @@ const audioRecorderPlayer = new AudioRecorderPlayer();
 type Product = {
     product_id: number;
     name_en: string;
-    name_ar?: string;
     price: number;
-    brand?: string;
-    category_id?: number;
-    description_ar?: string;
-    description_en?: string;
-    image_url?: string;
-    stock_quantity?: number;
-    unit_type?: string;
+};
+
+type VoiceResponsePayload = {
+  nlu_result: {
+    intent: { name: string };
+    entities: { entity: string; value: string }[];
+    transcript: string;
+  };
+  response_text: string;
+  audio_filename: string | null;
 };
 
 type ProductListScreenProps = StackScreenProps<RootStackParamList, 'ProductList'>;
@@ -42,46 +44,41 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [isRecording, setIsRecording] = useState(false);
     const [statusMessage, setStatusMessage] = useState('Tap microphone to speak');
+    const [transcriptMessage, setTranscriptMessage] = useState('');
 
-    const requestPermissions = async () => {
-        if (Platform.OS === 'android') {
-            try {
-                const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
-                );
-                if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-                    console.log('RECORD_AUDIO permission granted');
-                    return true;
-                } else {
-                    console.log('RECORD_AUDIO permission denied');
-                    return false;
+    const playAudioFromUrl = async (url: string) => {
+        setStatusMessage('Playing response...');
+        try {
+            await audioRecorderPlayer.startPlayer(url);
+            audioRecorderPlayer.addPlayBackListener((e) => {
+                if (e.currentPosition > 0 && e.currentPosition >= e.duration) {
+                    audioRecorderPlayer.stopPlayer();
+                    audioRecorderPlayer.removePlayBackListener();
+                    setStatusMessage('Tap microphone to speak');
                 }
-            } catch (err) {
-                console.warn('Permission request error:', err);
-                return false;
-            }
+            });
+        } catch (error) {
+            console.error('Failed to play audio from URL:', error);
+            setStatusMessage('Error: Could not play response');
         }
-        return true;
     };
-
+    
     const startRecording = async () => {
         const hasPermission = await requestPermissions();
         if (!hasPermission) {
-            Alert.alert('Permission Required', 'Microphone permission is needed to record audio.');
+            Alert.alert('Permission Required', 'Microphone permission is needed.');
             return;
         }
+        setTranscriptMessage(''); 
         setIsRecording(true);
         setStatusMessage('Recording...');
         try {
-            const result = await audioRecorderPlayer.startRecorder();
+            await audioRecorderPlayer.startRecorder();
             audioRecorderPlayer.addRecordBackListener((e) => {
                 setStatusMessage(`Recording... ${e.currentPosition.toFixed(1)}s`);
-                return;
             });
-            console.log(`Recording started: ${result}`);
         } catch (e) {
             console.error('Failed to start recording', e);
-            setStatusMessage('Error: Could not start recording');
             setIsRecording(false);
         }
     };
@@ -92,38 +89,80 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
         try {
             const resultPath = await audioRecorderPlayer.stopRecorder();
             audioRecorderPlayer.removeRecordBackListener();
-            console.log(`Recording stopped. File is at: ${resultPath}`);
             handleVoiceUpload(resultPath);
         } catch (e) {
             console.error('Failed to stop recording', e);
-            setStatusMessage('Error: Could not save recording');
         }
     };
 
     const handleVoiceUpload = async (filePath: string) => {
         const formData = new FormData();
-        const fileUri = Platform.OS === 'android' ? `file://${filePath}` : filePath;
         formData.append('audio', {
-            uri: fileUri,
-            type: 'audio/mp4',
-            name: 'voice_command.mp4',
+            uri: Platform.OS === 'android' ? `file://${filePath}` : filePath,
+            type: 'audio/wav',
+            name: 'voice_command.wav',
         });
+
+        const API_BASE_URL = 'http://10.0.2.2:5000/api/voice';
+
         try {
-            const API_URL = 'http://10.0.2.2:5000/api/voice/process';
-            console.log(`Uploading audio from URI: ${fileUri}`);
-            const response = await axios.post(API_URL, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            console.log('Full AI Pipeline Response:', response.data);
-            const { transcript, intent, entities } = response.data;
-            setStatusMessage(`Heard: "${transcript}"`);
-            if (intent === 'search_product' && entities && entities.length > 0) {
-                setSearchTerm(entities[0].value);
+            const token = await AsyncStorage.getItem('userToken');
+            if (!token) {
+                setStatusMessage('Error: You are not logged in.');
+                navigation.replace('Login');
+                return;
             }
+
+            const response = await axios.post<VoiceResponsePayload>(`${API_BASE_URL}/process`, formData, {
+                headers: { 
+                    'Content-Type': 'multipart/form-data',
+                    'Authorization': `Bearer ${token}`
+                },
+                timeout: 30000, 
+            });
+            
+            const { nlu_result, response_text, audio_filename } = response.data;
+            
+            if (nlu_result.transcript) {
+                setTranscriptMessage(`Heard: "${nlu_result.transcript}"`);
+            }
+
+            const intent = nlu_result.intent.name;
+            const productEntity = nlu_result.entities.find(e => e.entity === 'product_name');
+
+            if (intent === 'search_product' && productEntity) {
+                setSearchTerm(productEntity.value);
+            }
+
+            if (audio_filename) {
+                const audioUrl = `${API_BASE_URL}/audio/${audio_filename}`;
+                playAudioFromUrl(audioUrl);
+            } else {
+                setStatusMessage(response_text || "Action complete.");
+            }
+
         } catch (error) {
-            console.error('Error uploading audio:', error);
-            setStatusMessage('Error: Could not process request.');
+            console.error('Error during voice processing:', error);
+            if (axios.isAxiosError(error) && error.response?.status === 401) {
+                setStatusMessage('Session expired. Please log in again.');
+                navigation.replace('Login');
+            } else {
+                setStatusMessage('Error: Could not process request.');
+            }
         }
+    };
+    
+    const requestPermissions = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+                return granted === PermissionsAndroid.RESULTS.GRANTED;
+            } catch (err) {
+                console.warn(err);
+                return false;
+            }
+        }
+        return true;
     };
 
     useLayoutEffect(() => {
@@ -146,56 +185,39 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
             setLoading(true);
             try {
                 const token = await AsyncStorage.getItem('userToken');
-                if (!token) {
-                    navigation.replace('Login');
-                    return;
-                }
-                const response = await axios.get('http://10.0.2.2:5000/api/products', {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+                if (!token) { navigation.replace('Login'); return; }
+                const response = await axios.get('http://10.0.2.2:5000/api/products', { headers: { Authorization: `Bearer ${token}` } });
                 const fetchedProducts = response.data.products || response.data;
                 if (Array.isArray(fetchedProducts)) {
                     setProducts(fetchedProducts);
                     setOriginalProducts(fetchedProducts);
                 }
-            } catch (error) {
-                console.error('Failed to fetch initial products:', error);
-            } finally {
-                setLoading(false);
-            }
+            } catch (error) { console.error('Failed to fetch initial products:', error); }
+            finally { setLoading(false); }
         };
         loadInitialData();
+        return () => {
+            audioRecorderPlayer.removeRecordBackListener();
+            audioRecorderPlayer.removePlayBackListener();
+        };
     }, [navigation]);
 
     useEffect(() => {
-        if (searchTerm.trim() === '') {
-            setProducts(originalProducts);
-            return;
-        }
+        if (searchTerm.trim() === '') { setProducts(originalProducts); return; }
         const handleSearch = async () => {
             try {
                 const token = await AsyncStorage.getItem('userToken');
                 if (!token) { return; }
-                const response = await axios.get(`http://10.0.2.2:5000/api/products/search?q=${encodeURIComponent(searchTerm)}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const response = await axios.get(`http://10.0.2.2:5000/api/products/search?q=${encodeURIComponent(searchTerm)}`, { headers: { Authorization: `Bearer ${token}` } });
                 setProducts(response.data.products || response.data);
-            } catch (error) {
-                console.error("Search failed:", error);
-                setProducts([]);
-            }
+            } catch (error) { console.error("Search failed:", error); setProducts([]); }
         };
-        const delayDebounceFn = setTimeout(() => {
-            handleSearch();
-        }, 300);
+        const delayDebounceFn = setTimeout(() => { handleSearch(); }, 300);
         return () => clearTimeout(delayDebounceFn);
     }, [searchTerm, originalProducts]);
 
     const renderItem = ({ item }: { item: Product }) => (
-        <TouchableOpacity
-            style={styles.itemContainer}
-            onPress={() => navigation.navigate('ProductDetail', { productId: item.product_id })}
-        >
+        <TouchableOpacity style={styles.itemContainer} onPress={() => navigation.navigate('ProductDetail', { productId: item.product_id })}>
             <Text style={styles.itemName}>{item.name_en}</Text>
             <Text style={styles.itemPrice}>Price: ${item.price ? item.price.toFixed(2) : 'N/A'}</Text>
         </TouchableOpacity>
@@ -203,145 +225,53 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
 
     return (
         <View style={styles.container}>
-            <TextInput
-                style={styles.searchInput}
-                placeholder="Search or use voice..."
-                value={searchTerm}
-                onChangeText={setSearchTerm}
-                clearButtonMode="while-editing"
-            />
+            <TextInput style={styles.searchInput} placeholder="Search or use voice..." value={searchTerm} onChangeText={setSearchTerm} clearButtonMode="while-editing" />
             {loading ? (
                 <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20 }} />
             ) : (
-                <FlatList
-                    data={products}
-                    renderItem={renderItem}
-                    keyExtractor={(item) => item.product_id.toString()}
-                    contentContainerStyle={styles.listContainer}
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No products found.</Text>
-                        </View>
-                    }
-                />
+                <FlatList data={products} renderItem={renderItem} keyExtractor={(item) => item.product_id.toString()} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>No products found.</Text>} />
             )}
-            
             <View style={styles.voiceContainer}>
-                <TouchableOpacity 
-                    onPress={isRecording ? stopRecording : startRecording} 
-                    style={[styles.micButton, isRecording && styles.micButtonActive]}
-                >
-                    <Text style={styles.micButtonText}>
-                        {isRecording ? 'STOP' : 'MIC'}
-                    </Text>
+                <TouchableOpacity onPress={isRecording ? stopRecording : startRecording} style={[styles.micButton, isRecording && styles.micButtonActive]}>
+                    <Text style={styles.micButtonText}>{isRecording ? 'STOP' : 'MIC'}</Text>
                 </TouchableOpacity>
-                
                 <Text style={styles.voiceStatusText}>{statusMessage}</Text>
+                {transcriptMessage ? (
+                    <Text style={styles.transcriptText}>{transcriptMessage}</Text>
+                ) : null}
             </View>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f8f8f8',
-    },
-    headerRightContainer: {
-        flexDirection: 'row',
-        marginRight: 10,
-    },
-    headerButton: {
-        marginLeft: 15,
-    },
+    container: { flex: 1, backgroundColor: '#f8f8f8' },
+    headerRightContainer: { flexDirection: 'row', marginRight: 10 },
+    headerButton: { marginLeft: 15 },
+    // --- MODIFICATION: Removed the color property ---
+    // The color will now be inherited from the navigator's headerTintColor.
     headerButtonText: {
-        color: '#fff',
         fontSize: 16,
     },
-    searchInput: {
-        height: 45,
-        borderColor: '#ddd',
-        borderWidth: 1,
-        borderRadius: 8,
-        paddingHorizontal: 15,
-        margin: 10,
-        backgroundColor: '#fff',
-        fontSize: 16,
-    },
-    listContainer: {
-        paddingHorizontal: 10,
-        paddingBottom: 150,
-    },
-    itemContainer: {
-        backgroundColor: '#fff',
-        padding: 15,
-        marginVertical: 8,
-        borderRadius: 8,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 1.41,
-    },
-    itemName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    itemPrice: {
-        fontSize: 16,
-        color: 'green',
+    searchInput: { height: 45, borderColor: '#ddd', borderWidth: 1, borderRadius: 8, paddingHorizontal: 15, margin: 10, backgroundColor: '#fff', fontSize: 16 },
+    listContainer: { paddingHorizontal: 10, paddingBottom: 150 },
+    itemContainer: { backgroundColor: '#fff', padding: 15, marginVertical: 8, borderRadius: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41 },
+    itemName: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+    itemPrice: { fontSize: 16, color: 'green', marginTop: 5 },
+    emptyText: { fontSize: 18, color: '#888', textAlign: 'center', marginTop: 50 },
+    voiceContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: 'rgba(255, 255, 255, 0.95)', borderTopWidth: 1, borderTopColor: '#e0e0e0', alignItems: 'center' },
+    micButton: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginBottom: 10, elevation: 5 },
+    micButtonActive: { backgroundColor: '#FF3B30' },
+    micButtonText: { fontSize: 16, fontWeight: 'bold', color: 'white' },
+    voiceStatusText: { fontSize: 14, color: '#666', textAlign: 'center', fontStyle: 'italic', marginBottom: 5 },
+    transcriptText: {
         marginTop: 5,
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 50,
-    },
-    emptyText: {
-        fontSize: 18,
-        color: '#888',
-    },
-    voiceContainer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        borderTopWidth: 1,
-        borderTopColor: '#e0e0e0',
-        alignItems: 'center',
-    },
-    micButton: {
-        width: 70,
-        height: 70,
-        borderRadius: 35,
-        backgroundColor: '#007AFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 10,
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-    },
-    micButtonActive: {
-        backgroundColor: '#FF3B30',
-    },
-    micButtonText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: 'white',
-    },
-    voiceStatusText: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: 15,
+        color: '#000',
         textAlign: 'center',
-        fontStyle: 'italic',
+        fontWeight: '500',
     },
 });
 
 export default ProductListScreen;
+

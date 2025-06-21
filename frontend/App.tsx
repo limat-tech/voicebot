@@ -63,8 +63,8 @@ const App = () => {
             <Stack.Navigator
                 initialRouteName={initialRoute} // Dynamically set the initial route
                 screenOptions={{
-                    headerStyle: { backgroundColor: '#007AFF' },
-                    headerTintColor: '#fff',
+                    headerStyle: { backgroundColor: '#f8f8f8' },
+                    headerTintColor: '#007AFF',
                     headerTitleStyle: { fontWeight: 'bold' },
                 }}
             >

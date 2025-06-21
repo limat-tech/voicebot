@@ -19,6 +19,7 @@
     "react": "19.1.0",
     "react-native": "0.80.0",
     "react-native-audio-recorder-player": "^3.6.13",
+    "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "^2.26.0",
     "react-native-reanimated": "^3.18.0",
     "react-native-safe-area-context": "^5.4.1",

@@ -1,84 +1,125 @@
-# app/routes/voice.py
-from flask import Blueprint, request, jsonify, Response 
+# In backend/app/routes/voice.py
+
+from flask import Blueprint, request, jsonify, send_from_directory
 from app.services.asr_service import WhisperASRService
 from app.services.nlu_service import RasaNLUService
 from app.services.tts_service import MaryTTSService 
 import os
 import tempfile
-import sys # Import the sys module
+import uuid
+import logging
+from flask_jwt_extended import jwt_required, get_jwt_identity # <-- IMPORT JWT tools
+from app.models.product import Product # <-- IMPORT Product model
+from app.models.shopping_cart import ShoppingCart # <-- IMPORT ShoppingCart model
+from app.models.cart_item import CartItem # <-- IMPORT CartItem model
+from app import db # <-- IMPORT the database instance
+
+# --- Existing Setup ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+TTS_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'tts_output')
+os.makedirs(TTS_OUTPUT_DIR, exist_ok=True)
 
 voice_bp = Blueprint('voice', __name__, url_prefix='/api/voice')
 
-# --- Service Initialization ---
-print("Initializing AI services for the voice blueprint...")
 asr_service = WhisperASRService()
 nlu_service = RasaNLUService()
 tts_service = MaryTTSService() 
-print("AI services initialized.")
 
 @voice_bp.route('/process', methods=['POST'])
+@jwt_required() # <-- PROTECT THIS ENDPOINT so we know the user
 def process_voice():
-    # --- Step 1: Receive and Save Audio ---
+    # --- Step 1: Get Authenticated User ---
+    # This is the user ID from the JWT token sent by the frontend.
+    customer_id = get_jwt_identity()
+    
     if 'audio' not in request.files:
         return jsonify({"error": "No audio file part in the request"}), 400
 
+    # ... (rest of the file upload and ASR logic is the same) ...
     audio_file = request.files['audio']
-    if audio_file.filename == '':
-        return jsonify({"error": "No selected audio file"}), 400
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         audio_file.save(temp_audio.name)
         temp_audio_path = temp_audio.name
-
-    transcript = None
-    nlu_result = None
     
-    try:
-        # --- Step 2: ASR & NLU Processing ---
-        transcript = asr_service.transcribe(temp_audio_path)
-        
-        # --- ADD THIS LINE TO SEE THE TRANSCRIPT ---
-        print(f"--- Whisper Transcript: {transcript}", file=sys.stderr)
-        
-        if transcript:
-            nlu_result = nlu_service.parse(transcript)
-            
-            # --- ADD THIS LINE TO SEE THE NLU RESULT ---
-            print(f"--- Rasa NLU Result: {nlu_result}", file=sys.stderr)
+    transcript = asr_service.transcribe(temp_audio_path)
+    os.remove(temp_audio_path)
+    logging.info(f"Whisper Transcript: '{transcript}'")
 
-    finally:
-        # --- Step 3: Cleanup ---
-        os.remove(temp_audio_path)
-
-    if not transcript or not nlu_result:
-        error_text = "I'm sorry, I had trouble understanding. Please try again."
-        audio_response = tts_service.synthesize(error_text)
-        if audio_response:
-            return Response(audio_response, mimetype='audio/wav')
-        else:
-            return jsonify({"error": "Failed to process audio and could not generate TTS error"}), 500
-
-    # --- Step 4: Intent Handling & Response Generation ---
-    intent = nlu_result.get("intent", {}).get("name")
-    response_text = ""
-
-    if intent == "search_product":
-        entities = nlu_result.get("entities", [])
-        item_name = next((e['value'] for e in entities if e['entity'] == 'product_name'), "that item")
-        response_text = f"Searching for {item_name} now."
-    elif intent == "add_to_cart":
-        response_text = "Item added to your cart."
-    elif intent == "greet":
-        response_text = "Hello! How can I help you with your shopping list today?"
+    if not transcript:
+        # Handle transcription failure
+        response_text = "I'm sorry, I couldn't hear you clearly. Please try again."
+        nlu_result = {"intent": {"name": "transcription_error"}, "entities": []}
     else:
-        # This is the fallback response you are hearing
-        response_text = "I'm not sure how to help with that, but I'm learning."
+        # --- NLU and Intent Handling ---
+        nlu_result = nlu_service.parse(transcript)
+        intent = nlu_result.get("intent", {})
+        intent_name = intent.get("name", "N/A")
+        confidence = intent.get("confidence", 0.0)
+        logging.info(f"Rasa NLU Intent: '{intent_name}' (Confidence: {confidence:.2f})")
 
-    # --- Step 5: TTS - Synthesize Audio from Text ---
+        # --- REVISED INTENT LOGIC ---
+        if intent_name == "search_product":
+            entities = nlu_result.get("entities", [])
+            item_name = next((e['value'] for e in entities if e['entity'] == 'product_name'), "that item")
+            response_text = f"Searching for {item_name} now."
+
+        elif intent_name == "add_to_cart":
+            entities = nlu_result.get("entities", [])
+            item_name = next((e['value'] for e in entities if e['entity'] == 'product_name'), None)
+            
+            if not item_name:
+                response_text = "Please specify which item you'd like to add to the cart."
+            else:
+                # --- ACTUAL CART LOGIC ---
+                product = Product.query.filter(Product.name_en.ilike(f'%{item_name}%')).first()
+                if not product:
+                    response_text = f"I'm sorry, I couldn't find {item_name} in our store."
+                else:
+                    # Find or create the user's shopping cart
+                    cart = ShoppingCart.query.filter_by(customer_id=customer_id).first()
+                    if not cart:
+                        cart = ShoppingCart(customer_id=customer_id)
+                        db.session.add(cart)
+                    
+                    # Check if item is already in cart
+                    cart_item = CartItem.query.filter_by(cart_id=cart.cart_id, product_id=product.product_id).first()
+                    if cart_item:
+                        cart_item.quantity += 1
+                    else:
+                        cart_item = CartItem(cart_id=cart.cart_id, product_id=product.product_id, quantity=1)
+                        db.session.add(cart_item)
+                    
+                    db.session.commit()
+                    response_text = f"Okay, I've added {product.name_en} to your cart."
+                    logging.info(f"Added product {product.product_id} to cart for customer {customer_id}")
+
+        elif intent_name == "greet":
+            response_text = "Hello! How can I help you with your shopping list today?"
+        else:
+            response_text = "I'm not sure how to help with that, but I'm learning."
+    
+    # --- TTS Step ---
     audio_response_data = tts_service.synthesize(response_text)
+    audio_filename = None
+    if audio_response_data:
+        logging.info("Coqui TTS: Successfully fetched synthesized audio.")
+        audio_filename = f"{uuid.uuid4()}.wav"
+        with open(os.path.join(TTS_OUTPUT_DIR, audio_filename), 'wb') as f:
+            f.write(audio_response_data)
+    else:
+        logging.error("Coqui TTS: FAILED to fetch synthesized audio.")
 
-    if audio_response_data is None:
-        return jsonify({"error": "Failed to synthesize audio response"}), 500
+    return jsonify({
+        "nlu_result": nlu_result,
+        "response_text": response_text,
+        "audio_filename": audio_filename
+    })
 
-    # --- Step 6: Return Audio Response ---
-    return Response(audio_response_data, mimetype='audio/wav')
+# ... (the /audio/<filename> endpoint remains unchanged) ...
+@voice_bp.route('/audio/<filename>', methods=['GET'])
+def get_audio_file(filename):
+    try:
+        return send_from_directory(TTS_OUTPUT_DIR, filename, as_attachment=False)
+    except FileNotFoundError:
+        return jsonify({"error": "File not found"}), 404
