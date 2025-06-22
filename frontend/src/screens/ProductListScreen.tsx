@@ -33,6 +33,7 @@ type VoiceResponsePayload = {
   };
   response_text: string;
   audio_filename: string | null;
+  order_id: number | null;
 };
 
 type ProductListScreenProps = StackScreenProps<RootStackParamList, 'ProductList'>;
@@ -125,7 +126,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
                 timeout: 30000, 
             });
             
-            const { nlu_result, audio_filename } = response.data;
+            const { nlu_result, audio_filename,order_id } = response.data;
             
             // Set the persistent transcript message
             if (nlu_result && nlu_result.transcript) {
@@ -141,6 +142,10 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
 
             if (intent === 'search_product' && productEntity) {
                 setSearchTerm(productEntity.value);
+            } else if (intent === 'view_cart') {
+                navigation.navigate('Cart');
+            } else if (intent === 'go_to_checkout' && order_id) {
+                navigation.navigate('OrderDetail',{orderId: order_id});
             }
 
             if (audio_filename) {

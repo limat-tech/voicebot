@@ -198,96 +198,16 @@ def remove_cart_item(cart_item_id_from_url):
 @jwt_required()
 def checkout():
     current_user_id_str = get_jwt_identity()
-    try:
-        current_user_id = int(current_user_id_str)
-    except ValueError:
-        return jsonify({"msg": "Invalid user identity in token."}), 400
+    result = process_checkout(customer_id=current_user_id)
 
-    # 1. Retrieve the user's shopping cart
-    shopping_cart = ShoppingCart.query.filter_by(customer_id=current_user_id).first()
-
-    if not shopping_cart or not shopping_cart.items.first(): # .items is dynamic
-        return jsonify({"msg": "Your shopping cart is empty. Cannot proceed to checkout."}), 400
-
-    # 2. Final validation and data collection before creating order
-    order_items_data_for_creation = []
-    calculated_total_amount = Decimal('0.0')
-    
-    cart_items_to_process = shopping_cart.items.all() # Get all items now
-
-    # --- Start Transaction ---
-    # It's good practice to wrap order creation, stock update, and cart clearing in a try/except
-    # to ensure all operations succeed or all are rolled back.
-    try:
-        # First pass: Validate stock and collect item data
-        for cart_item in cart_items_to_process:
-            product = Product.query.with_for_update().get(cart_item.product_id) # Lock product row for stock update
-            
-            if not product:
-                # This should ideally not happen if product was in cart
-                raise Exception(f"Product with ID {cart_item.product_id} not found during checkout.") 
-            if not product.is_active:
-                raise Exception(f"Product '{product.name_en}' is no longer available.")
-            if product.stock_quantity < cart_item.quantity:
-                raise Exception(f"Insufficient stock for '{product.name_en}'. Requested: {cart_item.quantity}, Available: {product.stock_quantity}")
-
-            price_at_purchase = product.price # This is a Decimal
-            item_subtotal = price_at_purchase * cart_item.quantity
-            
-            order_items_data_for_creation.append({
-                'product_id': product.product_id,
-                'quantity': cart_item.quantity,
-                'price_at_purchase': price_at_purchase,
-                'product_ref': product # Keep reference for stock update
-            })
-            calculated_total_amount += item_subtotal
-
-        # 3. Create the Order record
-        new_order = Order(
-            customer_id=current_user_id,
-            total_amount=calculated_total_amount, # Ensure this is Decimal
-            status='pending' # Initial status
-        )
-        db.session.add(new_order)
-        db.session.flush() # To get new_order.order_id for OrderItems
-
-        # 4. Create OrderItem records and Decrement Stock
-        for item_data in order_items_data_for_creation:
-            order_item_entry = OrderItem(
-                order_id=new_order.order_id,
-                product_id=item_data['product_id'],
-                quantity=item_data['quantity'],
-                price_at_purchase=item_data['price_at_purchase']
-            )
-            db.session.add(order_item_entry)
-            
-            # Decrement stock
-            product_to_update = item_data['product_ref']
-            product_to_update.stock_quantity -= item_data['quantity']
-            # db.session.add(product_to_update) # Not strictly necessary if product_to_update is already in session
-
-        # 5. Clear the shopping cart (delete its CartItems)
-        for cart_item in cart_items_to_process:
-            db.session.delete(cart_item)
-        
-        # Optionally, delete the ShoppingCart record itself if it's always one active cart that gets emptied.
-        # db.session.delete(shopping_cart) 
-        # Or just ensure it's empty if it persists for the user.
-
-        db.session.commit()
-        # --- Transaction End ---
-
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Checkout failed for user {current_user_id}: {str(e)}")
-        return jsonify({"msg": "Checkout process failed.", "error_details": str(e)}), 400 # Or 500 for unexpected
+    if not result['success']:
+        return jsonify({"msg": "Checkout process failed.", "error_details": result['error']}), result['status_code']
 
     return jsonify({
         "msg": "Order placed successfully!",
-        "order_id": new_order.order_id,
-        "total_amount": float(new_order.total_amount),
-        "status": new_order.status
-    }), 201 # 201 Created for new resource (order)
+        "order_id": result['order_id'],
+        "total_amount": float(result['total_amount'])
+    }), result['status_code']
 
 @cart_bp.route('/items/<int:cart_item_id_from_url>', methods=['PUT'])
 @jwt_required()

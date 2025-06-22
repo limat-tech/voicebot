@@ -1,7 +1,19 @@
-# rasa/data/nlu.yml
 version: "3.1"
 
 nlu:
+- intent: greet
+  examples: |
+    - hey
+    - hello
+    - hi
+    - good morning
+    - good evening
+    - hey there
+    - hello there
+    - greetings
+    - what's up
+    - how are you
+
 - intent: search_product
   examples: |
     - find [apples](product_name)
@@ -10,6 +22,9 @@ nlu:
     - show me [oranges](product_name)
     - do you have [eggs](product_name)
     - look for [cheese](product_name)
+    - find [chicken](product_name)
+    - search for [tomatoes](product_name)
+    - show me [potatoes](product_name)
 
 - intent: add_to_cart
   examples: |
@@ -17,3 +32,31 @@ nlu:
     - I want this one
     - put it in my basket
     - yes add it
+    - add [apples](product_name) to cart
+    - put [milk](product_name) in my basket
+    - add one [loaf of bread](product_name)
+    - I want to buy [bananas](product_name)
+    - add [chicken](product_name) to my cart
+
+# --- NEW NAVIGATION INTENTS ---
+
+- intent: view_cart
+  examples: |
+    - show my cart
+    - open the cart
+    - what's in my cart
+    - view my shopping cart
+    - take me to my cart
+    - where is my cart
+    - check my cart
+
+- intent: go_to_checkout
+  examples: |
+    - I want to pay
+    - checkout now
+    - proceed to checkout
+    - ready to pay
+    - go to checkout
+    - take me to checkout
+    - let's pay
+    - I'm done shopping
