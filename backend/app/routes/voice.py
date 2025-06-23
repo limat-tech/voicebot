@@ -8,19 +8,19 @@ import tempfile
 import uuid
 import logging
 
+# --- NEW: Import the language detection service ---
+from app.services.language_service import detect_language
 from app.services.asr_service import WhisperASRService
-from app.services.nlu_service import RasaNLUService
+from app.services.nlu_service import RasaNLUService  # This class is now updated
 from app.services.tts_service import MaryTTSService
 from app.services.checkout_service import process_checkout
 from app.models.product import Product
 from app import db
 
-# Configure logging
+# (The rest of your initial setup code remains the same)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 TTS_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'tts_output')
 os.makedirs(TTS_OUTPUT_DIR, exist_ok=True)
-
 voice_bp = Blueprint('voice', __name__, url_prefix='/api/voice')
 asr_service = WhisperASRService()
 nlu_service = RasaNLUService()
@@ -43,7 +43,6 @@ def process_voice():
     os.remove(temp_audio_path)
     logging.info(f"Whisper Transcript: '{transcript}'")
 
-    # --- FIX: Initialize all response variables to default values ---
     response_text = ""
     order_id = None
     nlu_result = None
@@ -53,10 +52,16 @@ def process_voice():
         response_text = "I'm sorry, I couldn't hear you clearly. Please try again."
         nlu_result = {"intent": {"name": "transcription_error"}, "entities": [], "transcript": ""}
     else:
-        nlu_result = nlu_service.parse(transcript)
+        # --- NEW: Language Detection and Model Selection ---
+        language = detect_language(transcript)
+        model_name = "nlu-ar" if language == "ar" else "nlu-en"
+        logging.info(f"Detected language: '{language}'. Using model: '{model_name}'.")
 
-        if not nlu_result:
-            logging.error("NLU service failed to return a result.")
+        # --- UPDATED: Call NLU service with the selected model ---
+        nlu_result = nlu_service.parse(transcript, model=model_name)
+
+        if not nlu_result or "error" in nlu_result:
+            logging.error("NLU service failed or returned an error.")
             response_text = "I'm having trouble understanding right now. Please try again later."
             nlu_result = {"intent": {"name": "nlu_error"}, "entities": [], "transcript": transcript}
         else:
@@ -67,11 +72,15 @@ def process_voice():
             intent_name = intent.get("name", "N/A")
             logging.info(f"Rasa NLU Intent: '{intent_name}' (Confidence: {intent.get('confidence', 0.0):.2f})")
 
-            # --- Intent Handling Logic with All Paths Restored ---
+            # --- Intent Handling Logic (Now language-aware) ---
             if intent_name == "search_product":
                 entities = nlu_result.get("entities", [])
-                item_name = next((e['value'] for e in entities if e['entity'] == 'product_name'), "that item")
-                response_text = f"Searching for {item_name} now."
+                item_name = next((e['value'] for e in entities if e['entity'] == 'product_name'), None)
+                if item_name:
+                    # Note: We will make this response bilingual on Day 5
+                    response_text = f"Searching for {item_name} now."
+                else:
+                    response_text = "I'm sorry, what product are you looking for?"
 
             elif intent_name == "add_to_cart":
                 entities = nlu_result.get("entities", [])
@@ -79,18 +88,25 @@ def process_voice():
                 if not item_name:
                     response_text = "Please specify which item you'd like to add."
                 else:
-                    product = Product.query.filter(Product.name_en.ilike(f'%{item_name}%')).first()
+                    # --- UPDATED: Use language to query the correct database column ---
+                    product = None
+                    if language == 'ar':
+                        product = Product.query.filter(Product.name_ar.ilike(f'%{item_name}%')).first()
+                    else:
+                        product = Product.query.filter(Product.name_en.ilike(f'%{item_name}%')).first()
+                    
                     if product:
-                        # ... (full add to cart logic)
+                        # ... (full add to cart logic would go here)
+                        # Note: The response text is still in English; we'll fix this later.
                         response_text = f"Okay, I've added {product.name_en} to your cart."
                     else:
                         response_text = f"Sorry, I couldn't find {item_name}."
             
-            # --- FIX: Restored the missing view_cart logic ---
             elif intent_name == "view_cart":
                 response_text = "Okay, showing your cart now."
 
             elif intent_name == "go_to_checkout":
+                # Note: This logic will need to be made bilingual later
                 logging.info(f"User {customer_id} initiated checkout via voice.")
                 checkout_result = process_checkout(customer_id=customer_id)
                 if checkout_result['success']:
@@ -100,14 +116,14 @@ def process_voice():
                 else:
                     response_text = f"Checkout failed. {checkout_result.get('error', 'Please try again.')}"
 
-            else: # Fallback for other intents like 'greet' or unknown
+            else:
                 response_text = "I'm not sure how to help with that, but I'm learning."
 
-    # --- TTS Synthesis and WAV-to-MP3 Conversion ---
+    # (The TTS and response generation part remains the same)
     if response_text:
         audio_response_data = tts_service.synthesize(response_text)
         if audio_response_data:
-            logging.info("Coqui TTS: Successfully fetched synthesized audio (WAV).")
+            logging.info("TTS: Successfully fetched synthesized audio (WAV).")
             temp_wav_path = os.path.join(TTS_OUTPUT_DIR, f"{uuid.uuid4()}.wav")
             with open(temp_wav_path, 'wb') as f:
                 f.write(audio_response_data)
@@ -125,7 +141,7 @@ def process_voice():
                 if os.path.exists(temp_wav_path):
                     os.remove(temp_wav_path)
         else:
-            logging.error("Coqui TTS: FAILED to fetch synthesized audio.")
+            logging.error("TTS: FAILED to fetch synthesized audio.")
 
     return jsonify({
         "nlu_result": nlu_result,

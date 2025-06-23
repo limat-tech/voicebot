@@ -1,0 +1,45 @@
+# In rasa/data/nlu_ar.yml
+version: "3.1"
+nlu:
+- intent: greet
+  examples: |
+    - مرحبا
+    - أهلا
+    - السلام عليكم
+    - مساء الخير
+    - صباح الخير
+
+- intent: search_product
+  examples: |
+    - ابحث عن [تفاح](product_name)
+    - أريد [حليب](product_name)
+    - هل لديكم [خبز](product_name)؟
+    - دور لي على [موز](product_name)
+    - أحتاج [جبن](product_name) من فضلك
+    - هل يوجد [بيض](product_name)
+    - أريد أن أرى [البرتقال](product_name)
+
+- intent: add_to_cart
+  examples: |
+    - أضف هذا إلى السلة
+    - أريد هذا المنتج
+    - ضعه في سلتي
+    - أضف إلى عربة التسوق
+    - زيد واحد من هذا
+    - أريد شراء هذا
+
+- intent: view_cart
+  examples: |
+    - أرني سلة التسوق
+    - ماذا يوجد في سلتي؟
+    - عرض العربة
+    - أظهر لي ما اشتريت
+    - محتويات السلة
+
+- intent: checkout
+  examples: |
+    - أنا مستعد للدفع
+    - إتمام عملية الشراء
+    - أريد الدفع الآن
+    - الخروج
+    - أرسل الطلب

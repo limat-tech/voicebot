@@ -42,3 +42,30 @@ class Product(db.Model):
 
     def __repr__(self):
         return f'<Product {self.name_en}>'
+
+    def to_dict(self, lang='en'):
+        """
+        Serializes the Product object to a dictionary, providing data
+        in the specified language and using a clean, consistent format.
+        """
+        if lang == 'ar':
+            name = self.name_ar
+            description = self.description_ar
+        else:
+            name = self.name_en
+            description = self.description_en
+        
+        # The fallback `or self.name_en` is a robust way to handle cases
+        # where an Arabic translation might be missing for a product.
+        return {
+            "product_id": self.product_id,
+            "name": name or self.name_en,
+            "description": description or self.description_en,
+            "price": float(self.price),
+            "category_id": self.category_id,
+            "brand": self.brand,
+            "stock_quantity": self.stock_quantity,
+            "unit_type": self.unit_type,
+            "image_url": self.image_url,
+            "is_active": self.is_active
+        }

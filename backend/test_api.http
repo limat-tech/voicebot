@@ -43,7 +43,7 @@ GET http://127.0.0.1:5000/api/auth/profile
 Authorization: Bearer {{authToken}}
 
 ### Get a specific product by ID
-GET http://127.0.0.1:5000/api/products/1 
+GET http://127.0.0.1:5000/api/products/1?lang=ar 
 
 ### Get all active products
 # @name getAllProducts

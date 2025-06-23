@@ -1,0 +1,18 @@
+# In config_ar.yml
+language: "ar" # This is the most important line, setting the language to Arabic.
+
+pipeline:
+  # This tokenizer splits text based on spaces. It's language-agnostic and works well for Arabic.
+- name: WhitespaceTokenizer
+- name: RegexFeaturizer
+- name: LexicalSyntacticFeaturizer
+- name: CountVectorsFeaturizer
+- name: CountVectorsFeaturizer
+  analyzer: "char_wb"
+  min_ngram: 1
+  max_ngram: 4
+  # The DIETClassifier is the core component that performs intent classification and entity extraction.
+- name: DIETClassifier
+  epochs: 100
+  entity_recognition: true
+assistant_id: 20250623-093043-kinetic-entrepreneur
