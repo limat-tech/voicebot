@@ -1,0 +1,1 @@
+rasa run --enable-api --cors "*" -m models\nlu-ar.tar.gz --port 5006

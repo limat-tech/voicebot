@@ -110,72 +110,75 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
 
     // API Communication with fixes for UI and audio playback
     const handleVoiceUpload = async (filePath: string) => {
-        const formData = new FormData();
-        formData.append('audio', {
-            uri: Platform.OS === 'android' ? `file://${filePath}` : filePath,
-            type: 'audio/wav',
-            name: 'voice_command.wav',
-        });
+    const formData = new FormData();
+    formData.append('audio', {
+        uri: Platform.OS === 'android' ? `file://${filePath}` : filePath,
+        type: 'audio/wav',
+        name: 'voice_command.wav',
+    });
 
-        const API_BASE_URL = 'http://10.0.2.2:5000/api/voice';
+    const API_BASE_URL = 'http://10.0.2.2:5000/api/voice';
 
-        try {
-            const token = await AsyncStorage.getItem('userToken');
-            if (!token) {
-                setStatusMessage('Error: You are not logged in.');
-                navigation.replace('Login');
-                return;
-            }
-
-            const response = await axios.post<VoiceResponsePayload>(`${API_BASE_URL}/process`, formData, {
-                headers: { 
-                    'Content-Type': 'multipart/form-data',
-                    'Authorization': `Bearer ${token}`
-                },
-                timeout: 30000, 
-            });
-            
-            const { nlu_result, audio_filename,order_id } = response.data;
-            
-            // Set the persistent transcript message
-            if (nlu_result && nlu_result.transcript) {
-                setTranscriptMessage(`Heard: "${nlu_result.transcript}"`);
-            } else {
-                setTranscriptMessage("Sorry, I couldn't understand that.");
-            }
-            // Clear the status message, as the transcript now provides the primary feedback
-            setStatusMessage('');
-
-            const intent = nlu_result?.intent?.name;
-            const productEntity = nlu_result?.entities?.find(e => e.entity === 'product_name');
-
-            if (intent === 'search_product' && productEntity) {
-                setSearchTerm(productEntity.value);
-            } else if (intent === 'view_cart') {
-                navigation.navigate('Cart');
-            } else if (intent === 'go_to_checkout' && order_id) {
-                navigation.navigate('OrderDetail',{orderId: order_id});
-            }
-
-            if (audio_filename) {
-                const audioUrl = `${API_BASE_URL}/audio/${audio_filename}`;
-                // Use a timeout to prevent re-renders from interrupting the player
-                setTimeout(() => playAudioFromUrl(audioUrl), 100);
-            } else {
-                setTimeout(() => setStatusMessage('Tap microphone to speak'), 4000);
-            }
-
-        } catch (error) {
-            console.error('Error during voice processing:', error);
-            setTranscriptMessage(''); // Clear transcript on error
-            if (axios.isAxiosError(error) && error.response?.status === 401) {
-                setStatusMessage('Session expired. Please log in again.');
-                navigation.replace('Login');
-            } else {
-                setStatusMessage('Error: Could not process request.');
-            }
+    try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) {
+            setStatusMessage('Error: You are not logged in.');
+            navigation.replace('Login');
+            return;
         }
-    };
+
+        const response = await axios.post<VoiceResponsePayload>(`${API_BASE_URL}/process`, formData, {
+            headers: { 
+                'Content-Type': 'multipart/form-data',
+                'Authorization': `Bearer ${token}`
+            },
+            timeout: 90000, // INCREASED: Changed from 30000 (30s) to 90000 (90s) for Arabic TTS
+        });
+        
+        const { nlu_result, audio_filename, order_id } = response.data;
+        
+        // Set the persistent transcript message
+        if (nlu_result && nlu_result.transcript) {
+            setTranscriptMessage(`Heard: "${nlu_result.transcript}"`);
+        } else {
+            setTranscriptMessage("Sorry, I couldn't understand that.");
+        }
+        // Clear the status message, as the transcript now provides the primary feedback
+        setStatusMessage('');
+
+        const intent = nlu_result?.intent?.name;
+        const productEntity = nlu_result?.entities?.find(e => e.entity === 'product_name');
+
+        if (intent === 'search_product' && productEntity) {
+            setSearchTerm(productEntity.value);
+        } else if (intent === 'view_cart') {
+            navigation.navigate('Cart');
+        } else if (intent === 'go_to_checkout' && order_id) {
+            navigation.navigate('OrderDetail', {orderId: order_id});
+        }
+
+        if (audio_filename) {
+            const audioUrl = `${API_BASE_URL}/audio/${audio_filename}`;
+            // Use a timeout to prevent re-renders from interrupting the player
+            setTimeout(() => playAudioFromUrl(audioUrl), 100);
+        } else {
+            setTimeout(() => setStatusMessage('Tap microphone to speak'), 4000);
+        }
+
+    } catch (error) {
+        console.error('Error during voice processing:', error);
+        setTranscriptMessage(''); // Clear transcript on error
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+            setStatusMessage('Session expired. Please log in again.');
+            navigation.replace('Login');
+        } else if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
+            // Handle timeout specifically
+            setStatusMessage('Request timed out. Please try again.');
+        } else {
+            setStatusMessage('Error: Could not process request.');
+        }
+    }
+};
     
     // --- Unchanged Code Below ---
     const requestPermissions = async () => {
