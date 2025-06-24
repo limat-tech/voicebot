@@ -67,6 +67,7 @@ jsonpickle==3.0.4
 jsonschema==4.17.3
 keras==2.12.0
 kiwisolver==1.4.7
+langdetect==1.0.9
 libclang==18.1.1
 llvmlite==0.43.0
 locket==1.0.0
@@ -101,6 +102,7 @@ pyasn1_modules==0.4.2
 pycparser==2.22
 pydantic==1.10.9
 pydot==1.4.2
+pydub==0.25.1
 PyJWT==2.10.1
 pykwalify==1.8.0
 pymongo==4.3.3

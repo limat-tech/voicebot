@@ -11,6 +11,10 @@ orders_bp = Blueprint('orders', __name__, url_prefix='/api/orders')
 @orders_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_orders():
+    """
+    Retrieve all orders for the authenticated user.
+    Returns a list of orders with basic information.
+    """
     current_user_id = get_jwt_identity()
     orders = Order.query.filter_by(customer_id=current_user_id).order_by(Order.order_date.desc()).all()
     
@@ -28,17 +32,34 @@ def get_orders():
 @orders_bp.route('/<int:order_id>', methods=['GET'])
 @jwt_required()
 def get_order_details(order_id):
+    """
+    Retrieve detailed information for a specific order including bilingual product names.
+    Returns order details with both English and Arabic product names for each item.
+    """
     current_user_id = get_jwt_identity()
     order = Order.query.filter_by(order_id=order_id, customer_id=current_user_id).first_or_404()
 
     items_data = []
     for item in order.items:
         product = Product.query.get(item.product_id)
-        items_data.append({
-            'product_name': product.name_en if product else "Unknown Product",
-            'quantity': item.quantity,
-            'price_at_purchase': float(item.price_at_purchase)
-        })
+        if product:
+            # Include both English and Arabic product names
+            item_info = {
+                'product_name': product.name_en,        # English name (primary)
+                'product_name_ar': product.name_ar,     # Arabic name (secondary)
+                'quantity': item.quantity,
+                'price_at_purchase': float(item.price_at_purchase)
+            }
+        else:
+            # Fallback for deleted/missing products
+            item_info = {
+                'product_name': "Unknown Product",
+                'product_name_ar': "منتج غير معروف",     # Arabic fallback
+                'quantity': item.quantity,
+                'price_at_purchase': float(item.price_at_purchase)
+            }
+        
+        items_data.append(item_info)
 
     order_details = {
         'order_id': order.order_id,

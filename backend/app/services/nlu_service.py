@@ -1,42 +1,47 @@
 # In app/services/nlu_service.py
 import requests
-from typing import Union, Dict
+import logging
+from typing import Dict, Union
+
+# Define the URLs for your two separate Rasa servers
+RASA_SERVER_URLS = {
+    "en": "http://localhost:5005/model/parse",
+    "ar": "http://localhost:5006/model/parse",
+}
 
 class RasaNLUService:
     """
-    A service class to interact with a running Rasa NLU server.
+    A service class to interact with multiple running Rasa NLU servers,
+    routing requests based on language.
     """
-    def __init__(self, rasa_server_url="http://localhost:5005/model/parse"):
+    def parse(self, text: str, language: str = "en") -> Union[Dict, None]:
         """
-        Initializes the service with the Rasa server's parsing endpoint.
-        """
-        self.url = rasa_server_url
-
-    def parse(self, text: str, model: str = "nlu-en") -> Union[Dict, None]:
-        """
-        Sends text to the Rasa NLU server for intent and entity extraction.
+        Sends text to the appropriate Rasa NLU server based on language.
 
         Args:
             text (str): The user's text to be parsed.
-            model (str): The name of the Rasa model to use (e.g., 'nlu-en' or 'nlu-ar').
+            language (str): The detected language ('en' or 'ar'). This determines
+                            which Rasa server to call.
 
         Returns:
-            dict: A dictionary containing the parsed data (intent, entities, confidence).
-            None: If there was an error communicating with the Rasa server.
+            dict: A dictionary containing the parsed data from the correct model.
+            None: If the language is unsupported or a server is down.
         """
-        if not text:
+        if language not in RASA_SERVER_URLS:
+            logging.error(f"Unsupported language provided to NLU service: {language}")
             return None
-        
-        # The payload now includes the 'model' key to specify which NLU model to use.
-        payload = {"text": text, "model": model}
+
+        # Select the correct server URL based on the detected language
+        target_url = RASA_SERVER_URLS[language]
+        payload = {"text": text}
         
         try:
-            # Use json=payload to automatically handle content-type headers.
-            response = requests.post(self.url, json=payload)
-            response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+            logging.info(f"Sending NLU request for language '{language}' to {target_url}")
+            response = requests.post(target_url, json=payload)
+            response.raise_for_status()
             return response.json()
             
         except requests.exceptions.RequestException as e:
-            # Proper logging is important for debugging issues with the Rasa server.
-            print(f"Error communicating with Rasa NLU server: {e}")
-            return None
+            logging.error(f"Error communicating with Rasa NLU server at {target_url}: {e}")
+            return {"error": f"NLU service for language '{language}' is unavailable."}
+

@@ -2,7 +2,7 @@
 Product-related routes for the Flask application.
 
 Handles listing, searching, and retrieving details for products
-with full bilingual support.
+with full bilingual support - returns both English and Arabic names.
 """
 from flask import Blueprint, request, jsonify
 from app.models.product import Product
@@ -17,16 +17,30 @@ products_bp = Blueprint('products', __name__, url_prefix='/api/products')
 @products_bp.route('', methods=['GET'])
 def get_products():
     """
-    Retrieve a list of all active products, translated based on the 'lang' parameter.
-    ?lang=ar or ?lang=en
+    Retrieve a list of all active products with both English and Arabic names.
+    Returns both language versions so frontend can display title/subtitle.
     """
-    lang = request.args.get('lang', 'en').lower()
-    logger.info(f"Fetching all active products for language: {lang}")
+    logger.info("Fetching all active products with bilingual support")
     try:
         products = Product.query.filter_by(is_active=True).all()
-        # Use a list comprehension and our new to_dict method. Clean and efficient!
-        result = [p.to_dict(lang=lang) for p in products]
-        logger.info(f"Successfully fetched {len(result)} products.")
+        result = []
+        for product in products:
+            result.append({
+                'product_id': product.product_id,
+                'name_en': product.name_en,
+                'name_ar': product.name_ar,
+                'description_en': product.description_en,
+                'description_ar': product.description_ar,
+                'price': float(product.price),
+                'brand': product.brand,
+                'stock_quantity': product.stock_quantity,
+                'unit_type': product.unit_type,
+                'image_url': product.image_url,
+                'category_id': product.category_id,
+                'is_active': product.is_active
+            })
+        
+        logger.info(f"Successfully fetched {len(result)} products with bilingual data.")
         return jsonify({"products": result}), 200
     except Exception as e:
         logger.error("Error fetching products.", exc_info=True)
@@ -35,33 +49,52 @@ def get_products():
 @products_bp.route('/search', methods=['GET'])
 def search_products():
     """
-    Search for active products based on a query string in either English or Arabic.
-    ?q=...&lang=...
+    Search for active products in both English and Arabic.
+    Returns bilingual results regardless of search language.
+    ?q=search_term&lang=en/ar (lang used to determine which fields to search in)
     """
     query_param = request.args.get('q', '')
-    lang = request.args.get('lang', 'en').lower() # Use 'lang' for consistency
+    lang = request.args.get('lang', 'en').lower()
 
     if not query_param:
         return jsonify({"error": "Search query parameter 'q' is required."}), 400
 
-    logger.info(f"Searching for '{query_param}' in language: {lang}")
+    logger.info(f"Searching for '{query_param}' in language context: {lang}")
     try:
         search_filter = Product.is_active == True
         
         if lang == 'ar':
+            # Search in Arabic fields but return bilingual results
             search_filter = db.and_(search_filter, or_(
                 Product.name_ar.ilike(f"%{query_param}%"),
                 Product.description_ar.ilike(f"%{query_param}%")
             ))
-        else: # Default to English
+        else:
+            # Search in English fields but return bilingual results
             search_filter = db.and_(search_filter, or_(
                 Product.name_en.ilike(f"%{query_param}%"),
                 Product.description_en.ilike(f"%{query_param}%")
             ))
 
-        products_query = Product.query.filter(search_filter).all()
-        # Again, just call to_dict. No more manual dictionary building.
-        result = [p.to_dict(lang=lang) for p in products_query]
+        products = Product.query.filter(search_filter).all()
+        result = []
+        for product in products:
+            result.append({
+                'product_id': product.product_id,
+                'name_en': product.name_en,
+                'name_ar': product.name_ar,
+                'description_en': product.description_en,
+                'description_ar': product.description_ar,
+                'price': float(product.price),
+                'brand': product.brand,
+                'stock_quantity': product.stock_quantity,
+                'unit_type': product.unit_type,
+                'image_url': product.image_url,
+                'category_id': product.category_id,
+                'is_active': product.is_active
+            })
+        
+        logger.info(f"Found {len(result)} products matching search criteria.")
         return jsonify({"products": result}), 200
     except Exception as e:
         logger.error(f"Error during product search for query '{query_param}'.", exc_info=True)
@@ -70,16 +103,28 @@ def search_products():
 @products_bp.route('/<int:product_id>', methods=['GET'])
 def get_product(product_id):
     """
-    Returns details for a single product, translated based on the 'lang' parameter.
+    Returns details for a single product with both English and Arabic names.
     """
-    lang = request.args.get('lang', 'en').lower()
-    logger.info(f"Fetching product ID {product_id} for language: {lang}")
+    logger.info(f"Fetching product ID {product_id} with bilingual data")
     
-    # Using db.session.get is the modern, recommended way to fetch by primary key.
     product = db.session.get(Product, product_id)
     
     if not product or not product.is_active:
         return jsonify({"error": "Product not found or is not active"}), 404
     
-    # Simply call to_dict to get the language-specific response.
-    return jsonify(product.to_dict(lang=lang)), 200
+    result = {
+        'product_id': product.product_id,
+        'name_en': product.name_en,
+        'name_ar': product.name_ar,
+        'description_en': product.description_en,
+        'description_ar': product.description_ar,
+        'price': float(product.price),
+        'brand': product.brand,
+        'stock_quantity': product.stock_quantity,
+        'unit_type': product.unit_type,
+        'image_url': product.image_url,
+        'category_id': product.category_id,
+        'is_active': product.is_active
+    }
+    
+    return jsonify(result), 200

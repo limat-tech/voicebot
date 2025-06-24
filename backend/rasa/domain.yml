@@ -1,42 +1,14 @@
-# backend/rasa/domain.yml (Final, Complete, and Correct)
-
+# In rasa/domain.yml
 version: "3.1"
 
 intents:
   - greet
-  - goodbye
-  - affirm
-  - deny
-  - mood_great
-  - mood_unhappy
-  - bot_challenge
   - search_product
   - add_to_cart
-  - nlu_fallback
+  - view_cart
+  - go_to_checkout
 
 entities:
   - product_name
 
-responses:
-  utter_greet:
-  - text: "Hey! How are you?"
-
-  utter_cheer_up:
-  - text: "Here is something to cheer you up:"
-    image: "https://i.imgur.com/nGF1K8f.jpg"
-
-  utter_did_that_help:
-  - text: "Did that help you?"
-
-  utter_happy:
-  - text: "Great, carry on!"
-
-  utter_goodbye:
-  - text: "Bye"
-
-  utter_iamabot:
-  - text: "I am a bot, powered by Rasa."
-
-  # This is the response for your fallback rule.
-  utter_please_rephrase:
-  - text: "I'm sorry, I didn't understand that. Could you try rephrasing?"
+# We are not using responses or actions from the domain yet, so you can leave those empty.

@@ -7,12 +7,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { RootStackParamList } from '../../App'; // Adjust path if needed
 
-// We can reuse the Product type, but for detail, it might have more fields
-// Or it could be the same. Let's define it here for clarity.
+// Updated Product type to include Arabic fields
 type Product = {
     product_id: number;
     name_en: string;
+    name_ar: string;
     description_en: string;
+    description_ar: string;
     price: number;
     image_url?: string;
     brand?: string;
@@ -111,7 +112,7 @@ const ProductDetailScreen = ({ route, navigation }: ProductDetailScreenProps) =>
         );
     }
 
-    // Render the product details
+    // Render the product details with bilingual support
     return (
         <ScrollView style={styles.container}>
             {product.image_url ? (
@@ -123,22 +124,35 @@ const ProductDetailScreen = ({ route, navigation }: ProductDetailScreenProps) =>
             )}
             <View style={styles.infoContainer}>
                 <Text style={styles.brand}>{product.brand || 'Generic'}</Text>
-                <Text style={styles.name}>{product.name_en}</Text>
+                
+                {/* Bilingual Product Name - English as title, Arabic as subtitle */}
+                <Text style={styles.namePrimary}>{product.name_en}</Text>
+                {product.name_ar && (
+                    <Text style={styles.nameSecondary}>{product.name_ar}</Text>
+                )}
+                
                 <Text style={styles.price}>${product.price.toFixed(2)}</Text>
-                <Text style={styles.description}>{product.description_en}</Text>
+                
+                {/* Bilingual Description - English first, then Arabic */}
+                <View style={styles.descriptionContainer}>
+                    <Text style={styles.descriptionPrimary}>{product.description_en}</Text>
+                    {product.description_ar && (
+                        <Text style={styles.descriptionSecondary}>{product.description_ar}</Text>
+                    )}
+                </View>
 
                 <View style={styles.stockInfo}>
                     <Text>In Stock: {product.stock_quantity || 0}</Text>
                 </View>
                 
                 <View style={styles.quantityContainer}>
-                <Button title="-" onPress={() => setQuantity(q => Math.max(1, q - 1))} />
-                <Text style={styles.quantityText}>{quantity}</Text>
-                <Button title="+" onPress={() => setQuantity(q => q + 1)} />
+                    <Button title="-" onPress={() => setQuantity(q => Math.max(1, q - 1))} />
+                    <Text style={styles.quantityText}>{quantity}</Text>
+                    <Button title="+" onPress={() => setQuantity(q => q + 1)} />
                 </View>
 
                 <View style={styles.buttonContainer}>
-                <Button title={`Add ${quantity} to Cart`} onPress={handleAddToCart} />
+                    <Button title={`Add ${quantity} to Cart`} onPress={handleAddToCart} />
                 </View>
             </View>
         </ScrollView>
@@ -179,10 +193,19 @@ const styles = StyleSheet.create({
         color: '#888',
         marginBottom: 5,
     },
-    name: {
+    // Updated name styles for bilingual support
+    namePrimary: {
         fontSize: 24,
         fontWeight: 'bold',
         color: '#333',
+        marginBottom: 5,
+    },
+    nameSecondary: {
+        fontSize: 18,
+        fontWeight: '500',
+        color: '#666',
+        fontStyle: 'italic',
+        textAlign: 'right', // Right-align Arabic text
         marginBottom: 10,
     },
     price: {
@@ -191,11 +214,22 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginBottom: 20,
     },
-    description: {
+    // Updated description styles for bilingual support
+    descriptionContainer: {
+        marginBottom: 20,
+    },
+    descriptionPrimary: {
         fontSize: 16,
         color: '#555',
         lineHeight: 24,
-        marginBottom: 20,
+        marginBottom: 8,
+    },
+    descriptionSecondary: {
+        fontSize: 14,
+        color: '#777',
+        lineHeight: 22,
+        fontStyle: 'italic',
+        textAlign: 'right', // Right-align Arabic text
     },
     stockInfo: {
         paddingVertical: 10,
@@ -207,7 +241,7 @@ const styles = StyleSheet.create({
     buttonContainer: {
         marginTop: 10,
     },
-     quantityContainer: {
+    quantityContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',

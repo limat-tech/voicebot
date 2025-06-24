@@ -1,32 +1,49 @@
 # In rasa/data/nlu_ar.yml
 version: "3.1"
+
 nlu:
 - intent: greet
   examples: |
     - مرحبا
     - أهلا
     - السلام عليكم
-    - مساء الخير
+    - كيف حالك
     - صباح الخير
+    - مساء الخير
 
 - intent: search_product
   examples: |
     - ابحث عن [تفاح](product_name)
-    - أريد [حليب](product_name)
+    - أريد أن أرى [الحليب](product_name)
     - هل لديكم [خبز](product_name)؟
-    - دور لي على [موز](product_name)
-    - أحتاج [جبن](product_name) من فضلك
-    - هل يوجد [بيض](product_name)
-    - أريد أن أرى [البرتقال](product_name)
+    - دور لي على [موز](product_name) لو سمحت
+    - هل يوجد [بيض](product_name) عندكم
+    - أريد البحث عن [الجبن](product_name)
+    - وريني كل أنواع [العصير](product_name)
+    - أظهر لي [الماء](product_name)
+    - ممكن أشوف [الدجاج](product_name)
 
 - intent: add_to_cart
   examples: |
-    - أضف هذا إلى السلة
+    - أضف [حليب](product_name) إلى السلة
+    - أريد شراء [خبز](product_name)
+    - ضع [تفاح](product_name) في عربتي
+    - زيد واحد [ماء](product_name)
+    - أريد أن أضيف [الجبن](product_name)
+    - حط لي [بيبسي](product_name) في السلة
+    - أضف [دجاج](product_name) من فضلك
+    - بدي أضيف [عصير برتقال](product_name)
     - أريد هذا المنتج
-    - ضعه في سلتي
-    - أضف إلى عربة التسوق
-    - زيد واحد من هذا
-    - أريد شراء هذا
+    - أضف هذا من فضلك
+    - هذا أيضا
+
+- intent: inform
+  examples: |
+    - [تفاح](product_name)
+    - [الخبز](product_name) لو سمحت
+    - [حليب كامل الدسم](product_name)
+    - أقصد [الجبن الأبيض](product_name)
+    - [ماء](product_name)
 
 - intent: view_cart
   examples: |
@@ -35,11 +52,22 @@ nlu:
     - عرض العربة
     - أظهر لي ما اشتريت
     - محتويات السلة
+    - شوف لي السلة
+    - ايش فيه في عربتي
 
-- intent: checkout
+- intent: go_to_checkout
   examples: |
     - أنا مستعد للدفع
     - إتمام عملية الشراء
-    - أريد الدفع الآن
     - الخروج
+    - أريد أن أدفع الآن
+    - خلاص خلصت
     - أرسل الطلب
+    - إلى الدفع
+
+- intent: goodbye
+  examples: |
+    - مع السلامة
+    - إلى اللقاء
+    - شكرا لك
+    - باي

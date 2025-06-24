@@ -130,10 +130,19 @@ Content-Type: application/json
 # {} 
 
 ### Voice Processing
-POST http://127.0.0.1:5000/api/voice/process
+POST http://127.0.0.1:5000/api/voice/process-text
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
-    "transcript": "I am looking for some apples"
+    "transcript": "ابحث لي عن تفاحة"
+}
+
+### Voice Processing
+POST http://127.0.0.1:5000/api/voice/process-text
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+    "transcript": "Find me Apple."
 }

@@ -22,7 +22,16 @@ const audioRecorderPlayer = new AudioRecorderPlayer();
 type Product = {
     product_id: number;
     name_en: string;
+    name_ar: string;
+    description_en?: string;
+    description_ar?: string;
     price: number;
+    brand?: string;
+    stock_quantity: number;
+    unit_type: string;
+    image_url?: string;
+    category_id: number;
+    is_active: boolean;
 };
 
 type VoiceResponsePayload = {
@@ -205,6 +214,8 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
                 if (!token) { navigation.replace('Login'); return; }
                 const response = await axios.get('http://10.0.2.2:5000/api/products', { headers: { Authorization: `Bearer ${token}` } });
                 const fetchedProducts = response.data.products || response.data;
+                console.log('Raw API response:', JSON.stringify(response.data, null, 2));
+                console.log('Fetched products:', JSON.stringify(fetchedProducts.slice(0, 2), null, 2)); // Log first 2 products
                 if (Array.isArray(fetchedProducts)) {
                     setProducts(fetchedProducts);
                     setOriginalProducts(fetchedProducts);
@@ -234,12 +245,34 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
     }, [searchTerm, originalProducts]);
 
     const renderItem = ({ item }: { item: Product }) => (
-        <TouchableOpacity style={styles.itemContainer} onPress={() => navigation.navigate('ProductDetail', { productId: item.product_id })}>
-            <Text style={styles.itemName}>{item.name_en}</Text>
-            <Text style={styles.itemPrice}>Price: ${item.price ? item.price.toFixed(2) : 'N/A'}</Text>
-        </TouchableOpacity>
-    );
-
+    <TouchableOpacity 
+        style={styles.itemContainer} 
+        onPress={() => navigation.navigate('ProductDetail', { productId: item.product_id })}
+    >
+        {/* English name as main title */}
+        <Text style={styles.itemNamePrimary}>
+            {item.name_en || 'Product Name'}
+        </Text>
+        
+        {/* Arabic name as subtitle */}
+        {item.name_ar && (
+            <Text style={styles.itemNameSecondary}>
+                {item.name_ar}
+            </Text>
+        )}
+        
+        <Text style={styles.itemPrice}>
+            Price: ${item.price ? item.price.toFixed(2) : 'N/A'}
+        </Text>
+        
+        {/* Optional: Show brand if available */}
+        {item.brand && (
+            <Text style={styles.itemBrand}>
+                Brand: {item.brand}
+            </Text>
+        )}
+    </TouchableOpacity>
+);
     return (
         <View style={styles.container}>
             <TextInput style={styles.searchInput} placeholder="Search or use voice..." value={searchTerm} onChangeText={setSearchTerm} clearButtonMode="while-editing" />
@@ -290,6 +323,25 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontWeight: '500',
         paddingHorizontal: 10,
+    },
+    itemNamePrimary: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 2,
+    },
+    itemNameSecondary: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#222',
+        fontStyle: 'italic',
+        marginBottom: 2,
+        textAlign: 'right', // Right-align Arabic text
+    },
+    itemBrand: {
+        fontSize: 12,
+        color: '#888',
+        fontStyle: 'italic',
     },
 });
 
