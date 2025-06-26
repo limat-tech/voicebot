@@ -4,8 +4,6 @@ from app import db
 from app.models.shopping_cart import ShoppingCart # Your ShoppingCart model
 from app.models.cart_item import CartItem       # Your CartItem model
 from app.models.product import Product
-from app.models.order import Order # Import your Order model
-from app.models.order_item import OrderItem # Import your OrderItem model
 from decimal import Decimal
 
 # from app.models.customer import Customer # Not directly queried if using JWT identity
@@ -79,7 +77,7 @@ def add_to_cart():
     return jsonify({
         "msg": f"'{product.name_en}' (Qty: {quantity} requested) processed for cart.",
         "cart_item_details": {
-            # Key change here: using cart_item_id from your model
+            # using cart_item_id from your model
             "cart_item_id": cart_item.cart_item_id, 
             "product_id": cart_item.product_id,
             "product_name": product.name_en,
@@ -113,7 +111,7 @@ def view_cart():
         }), 200
 
     items_response = []
-    # MODIFICATION: Initialize grand_total_price as a Decimal
+    # Initialize grand_total_price as a Decimal
     grand_total_price = Decimal('0.0')
 
     for item in cart_items_query_result:
@@ -198,7 +196,7 @@ def remove_cart_item(cart_item_id_from_url):
 @jwt_required()
 def checkout():
     current_user_id_str = get_jwt_identity()
-    result = process_checkout(customer_id=current_user_id)
+    result = process_checkout(customer_id=current_user_id_str)
 
     if not result['success']:
         return jsonify({"msg": "Checkout process failed.", "error_details": result['error']}), result['status_code']

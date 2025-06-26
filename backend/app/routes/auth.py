@@ -52,7 +52,7 @@ def register():
         logger.error(f"Registration failed for email {email}: Missing required fields.")
         return jsonify({"error": "Email and password are required"}), 400
     
-    if not name: # As per your plan's example, name seems to be required too
+    if not name:
         return jsonify({"error": "Name, email and password are required"}), 400
 
     # Check if user (customer) already exists

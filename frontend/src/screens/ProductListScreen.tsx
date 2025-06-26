@@ -108,7 +108,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
         }
     };
 
-    // API Communication with fixes for UI and audio playback
+    // API Communication
     const handleVoiceUpload = async (filePath: string) => {
     const formData = new FormData();
     formData.append('audio', {
@@ -132,7 +132,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
                 'Content-Type': 'multipart/form-data',
                 'Authorization': `Bearer ${token}`
             },
-            timeout: 90000, // INCREASED: Changed from 30000 (30s) to 90000 (90s) for Arabic TTS
+            timeout: 90000,
         });
         
         const { nlu_result, audio_filename, order_id } = response.data;
@@ -180,7 +180,6 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
     }
 };
     
-    // --- Unchanged Code Below ---
     const requestPermissions = async () => {
         if (Platform.OS === 'android') {
             try {
@@ -196,6 +195,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
 
     useLayoutEffect(() => {
         navigation.setOptions({
+            // eslint-disable-next-line react/no-unstable-nested-components
             headerRight: () => (
                 <View style={styles.headerRightContainer}>
                     <TouchableOpacity onPress={() => navigation.navigate('Cart')} style={styles.headerButton}>
@@ -217,8 +217,6 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
                 if (!token) { navigation.replace('Login'); return; }
                 const response = await axios.get('http://10.0.2.2:5000/api/products', { headers: { Authorization: `Bearer ${token}` } });
                 const fetchedProducts = response.data.products || response.data;
-                console.log('Raw API response:', JSON.stringify(response.data, null, 2));
-                console.log('Fetched products:', JSON.stringify(fetchedProducts.slice(0, 2), null, 2)); // Log first 2 products
                 if (Array.isArray(fetchedProducts)) {
                     setProducts(fetchedProducts);
                     setOriginalProducts(fetchedProducts);
@@ -268,7 +266,6 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
             Price: AED {item.price ? item.price.toFixed(2) : 'N/A'}
         </Text>
         
-        {/* Optional: Show brand if available */}
         {item.brand && (
             <Text style={styles.itemBrand}>
                 Brand: {item.brand}

@@ -15,6 +15,8 @@ from app.services.nlu_service import RasaNLUService
 from app.services.tts_service import CoquiTTSService
 from app.services.checkout_service import process_checkout
 from app.models.product import Product
+from app.models.shopping_cart import ShoppingCart
+from app.models.cart_item import CartItem
 from app import db
 
 # --- Initial Setup ---
@@ -28,7 +30,6 @@ asr_service = WhisperASRService()
 nlu_service = RasaNLUService()
 tts_service = CoquiTTSService()
 
-# --- NEW: Speaker ID Configuration ---
 # This dictionary maps a language code to the chosen speaker ID.
 # 'Ana Florence' is a high-quality English voice.
 # 'Suad Qasim' is the corresponding high-quality Arabic voice.
@@ -77,21 +78,51 @@ def _handle_dialogue_logic(transcript, customer_id):
                     response_text = f"Searching for {item_name}." if item_name else "Sorry, what product are you looking for?"
 
             elif intent_name == "add_to_cart":
+                logging.info(f"Handling 'add_to_cart' intent for customer {customer_id}")
                 entities = nlu_result.get("entities", [])
                 item_name = next((e['value'] for e in entities if e['entity'] == 'product_name'), None)
+
                 if not item_name:
+                    # If the user just says "add to cart" without specifying an item
                     response_text = "الرجاء تحديد المنتج الذي ترغب في إضافته." if language == 'ar' else "Please specify which item you'd like to add."
                 else:
-                    product_query = Product.query.filter(Product.name_ar.ilike(f'%{item_name}%')) if language == 'ar' else Product.query.filter(Product.name_en.ilike(f'%{item_name}%'))
-                    product = product_query.first()
-                    if product:
-                        product_data = product.to_dict(lang=language)
-                        if language == 'ar':
-                            response_text = f"تمام، لقد أضفت {product_data['name']} إلى سلتك."
-                        else:
-                            response_text = f"Okay, I've added {product_data['name']} to your cart."
+                    # Find the product in the database using the extracted name
+                    if language == 'ar':
+                        product_query = Product.query.filter(Product.name_ar.ilike(f'%{item_name}%'))
                     else:
-                        response_text = f"عذراً، لم أجد منتج باسم {item_name}." if language == 'ar' else f"Sorry, I couldn't find an item named {item_name}."
+                        product_query = Product.query.filter(Product.name_en.ilike(f'%{item_name}%'))
+                    
+                    product = product_query.first()
+
+                    if product:
+                        # Find or create the user's cart
+                        cart = ShoppingCart.query.filter_by(customer_id=customer_id).first()
+                        if not cart:
+                            cart = ShoppingCart(customer_id=customer_id)
+                            db.session.add(cart)
+                        
+                        # Check if the item is already in the cart
+                        cart_item = CartItem.query.filter_by(cart_id=cart.cart_id, product_id=product.product_id).first()
+                        if cart_item:
+                            cart_item.quantity += 1  # Increment quantity
+                        else:
+                            cart_item = CartItem(cart_id=cart.cart_id, product_id=product.product_id, quantity=1)
+                            db.session.add(cart_item)
+                        
+                        db.session.commit()
+                        
+                        # Generate confirmation response
+                        product_display_name = product.name_ar if language == 'ar' else product.name_en
+                        if language == 'ar':
+                            response_text = f"تمام، لقد أضفت {product_display_name} إلى سلتك."
+                        else:
+                            response_text = f"Okay, I've added {product_display_name} to your cart."
+                    else:
+                        # Product not found
+                        if language == 'ar':
+                            response_text = f"عذراً، لم أجد منتجاً باسم '{item_name}'."
+                        else:
+                            response_text = f"Sorry, I couldn't find an item named '{item_name}'."
             
             elif intent_name == "go_to_checkout":
                 logging.info(f"User {customer_id} initiated checkout via voice.")

@@ -1,7 +1,7 @@
 // VOCERY/frontend/App.tsx
 
 import 'react-native-gesture-handler';
-import React, { useEffect, useState } from 'react'; // Assuming you still have the login check logic
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import ProductListScreen from './src/screens/ProductListScreen';
-import ProductDetailScreen from './src/screens/ProductDetailScreen'; // <-- IMPORT THE NEW SCREEN
+import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import CartScreen from './src/screens/CartScreen';
 import OrderListScreen from './src/screens/OrderListScreen';
@@ -22,7 +22,7 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ProductList: undefined;
-  ProductDetail: { productId: number }; // <-- MAKE SURE THIS IS ADDED
+  ProductDetail: { productId: number };
   Profile: undefined;
   Cart: undefined;
   OrderList: undefined;

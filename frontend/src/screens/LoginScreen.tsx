@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CommonActions } from '@react-navigation/native'; // <-- IMPORT THIS
+import { CommonActions } from '@react-navigation/native';
 
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { RootStackParamList } from '../../App';
@@ -38,7 +38,6 @@ const LoginScreen = ({ navigation }: LoginScreenProps) => {
             await AsyncStorage.setItem('userToken', token);
             console.log('Token stored successfully.');
 
-            // --- FIX IS HERE ---
             // Instead of navigating, we dispatch a reset action.
             // This throws away the old navigation history and creates a new one.
             navigation.dispatch(

@@ -13,7 +13,7 @@ type CartItem = {
     cart_item_id: number;
     product_id: number;
     name_en: string;
-    name_ar: string;          // Added Arabic name field
+    name_ar: string;
     price_per_unit: number;
     quantity: number;
     subtotal: number;
@@ -28,11 +28,12 @@ const CartScreen = ({ navigation }: CartScreenProps) => {
     const [totalPrice, setTotalPrice] = useState<number>(0);
     const [loading, setLoading] = useState<boolean>(true);
 
-    const fetchCartData = async () => {
+    const fetchCartData = useCallback(async () => {
         setLoading(true);
         try {
             const token = await AsyncStorage.getItem('userToken');
             if (!token) {
+                // Using navigation.replace is generally fine here as it's a critical path
                 navigation.replace('Login');
                 return;
             }
@@ -47,9 +48,13 @@ const CartScreen = ({ navigation }: CartScreenProps) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [navigation]);
 
-    useFocusEffect(useCallback(() => { fetchCartData(); }, []));
+    useFocusEffect(
+        useCallback(() => {
+            fetchCartData();
+        }, [fetchCartData])
+    );
 
     const handleUpdateQuantity = async (itemId: number, newQuantity: number) => {
         try {
@@ -96,10 +101,8 @@ const CartScreen = ({ navigation }: CartScreenProps) => {
         }
     };
 
-    // Updated renderItem with bilingual support
     const renderItem = ({ item }: { item: CartItem }) => (
         <View style={styles.itemContainer}>
-            {/* Bilingual Product Names - English as primary, Arabic as secondary */}
             <View style={styles.nameContainer}>
                 <Text style={styles.itemNamePrimary}>{item.name_en}</Text>
                 {item.name_ar && (
@@ -160,7 +163,6 @@ const CartScreen = ({ navigation }: CartScreenProps) => {
     );
 };
 
-// Updated styles with bilingual support
 const styles = StyleSheet.create({
     container: { 
         flex: 1, 

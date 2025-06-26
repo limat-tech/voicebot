@@ -2,7 +2,7 @@ from app import db
 from decimal import Decimal # For price_at_purchase
 
 class OrderItem(db.Model):
-    __tablename__ = 'orderitems' # As per your long-term plan's schema list
+    __tablename__ = 'orderitems'
 
     order_item_id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.Integer, db.ForeignKey('orders.order_id'), nullable=False)
