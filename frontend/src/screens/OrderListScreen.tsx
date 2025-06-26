@@ -54,7 +54,7 @@ const OrderListScreen = ({ navigation }: OrderListScreenProps) => {
             <Text style={styles.orderDate}>Placed on: {new Date(item.order_date).toLocaleDateString()}</Text>
             <View style={styles.orderInfoRow}>
                 <Text style={styles.orderStatus}>Status: {item.status}</Text>
-                <Text style={styles.orderTotal}>${item.total_amount.toFixed(2)}</Text>
+                <Text style={styles.orderTotal}>AED {item.total_amount.toFixed(2)}</Text>
             </View>
         </TouchableOpacity>
     );

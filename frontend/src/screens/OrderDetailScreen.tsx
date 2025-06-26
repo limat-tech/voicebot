@@ -68,7 +68,7 @@ const OrderDetailScreen = ({ route, navigation }: OrderDetailScreenProps) => {
                 <Text style={styles.itemName}>{item.product_name}</Text>
                 <Text style={styles.itemQuantity}>Quantity: {item.quantity}</Text>
             </View>
-            <Text style={styles.itemPrice}>${item.price_at_purchase.toFixed(2)}</Text>
+            <Text style={styles.itemPrice}>AED {item.price_at_purchase.toFixed(2)}</Text>
         </View>
     );
 
@@ -91,7 +91,7 @@ const OrderDetailScreen = ({ route, navigation }: OrderDetailScreenProps) => {
                 </View>
                 <View style={[styles.summaryRow, { marginTop: 10, borderTopWidth: 1, paddingTop: 10, borderColor: '#eee' }]}>
                     <Text style={[styles.summaryLabel, { fontWeight: 'bold' }]}>Total Amount:</Text>
-                    <Text style={styles.summaryTotalValue}>${order.total_amount.toFixed(2)}</Text>
+                    <Text style={styles.summaryTotalValue}>AED {order.total_amount.toFixed(2)}</Text>
                 </View>
             </View>
             

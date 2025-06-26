@@ -124,7 +124,7 @@ const CartScreen = ({ navigation }: CartScreenProps) => {
                         <Text style={styles.quantityButtonText}>+</Text>
                     </TouchableOpacity>
                 </View>
-                <Text style={styles.itemPrice}>${item.subtotal.toFixed(2)}</Text>
+                <Text style={styles.itemPrice}>AED {item.subtotal.toFixed(2)}</Text>
             </View>
             
             <TouchableOpacity 
@@ -150,7 +150,7 @@ const CartScreen = ({ navigation }: CartScreenProps) => {
                 ListFooterComponent={
                     items.length > 0 ? (
                         <View style={styles.footer}>
-                            <Text style={styles.totalText}>Total: ${totalPrice.toFixed(2)}</Text>
+                            <Text style={styles.totalText}>Total: AED{totalPrice.toFixed(2)}</Text>
                             <Button title="Proceed to Checkout" onPress={handleCheckout} />
                         </View>
                     ) : null

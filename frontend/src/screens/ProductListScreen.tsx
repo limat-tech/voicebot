@@ -265,7 +265,7 @@ const ProductListScreen = ({ navigation }: ProductListScreenProps) => {
         )}
         
         <Text style={styles.itemPrice}>
-            Price: ${item.price ? item.price.toFixed(2) : 'N/A'}
+            Price: AED {item.price ? item.price.toFixed(2) : 'N/A'}
         </Text>
         
         {/* Optional: Show brand if available */}
