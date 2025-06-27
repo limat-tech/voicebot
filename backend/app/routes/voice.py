@@ -133,7 +133,7 @@ def _handle_dialogue_logic(transcript, customer_id):
                     if language == 'ar':
                         response_text = f"تم تأكيد طلبك بنجاح. المبلغ الإجمالي هو {total_amount:.2f} درهم."
                     else:
-                        response_text = f"Your order has been placed successfully. The total is ${total_amount:.2f}."
+                        response_text = f"Your order has been placed successfully. The total is AED {total_amount:.2f}."
                 else:
                     error_msg = checkout_result.get('error', 'Please try again.')
                     response_text = f"فشلت عملية الدفع. {error_msg}" if language == 'ar' else f"Checkout failed. {error_msg}"
