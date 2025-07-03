@@ -1,25 +1,163 @@
-# Backend - Flask Application
+# Vocery - Voice-Assisted Grocery Shopping Backend
+
+This repository contains the backend services for the Vocery application, a bilingual (English and Arabic) voice-assisted grocery shopping platform[1]. The backend is built using Flask and powers the core e-commerce functionalities, including user management, product catalog, shopping cart, orders, and the AI pipeline for voice command processing[2].
+
+## System Architecture
+
+The backend system is composed of several key services working together[2]:
+*   **Flask Application**: The main web server that provides the RESTful API for all e-commerce operations. It handles business logic and communicates with the database and other AI services.
+*   **PostgreSQL Database**: The relational database used to store all application data, including customer information, products, carts, and orders[3].
+*   **Rasa NLU**: Used for Natural Language Understanding. Two separate Rasa servers are run to handle intent and entity recognition for English and Arabic commands[2].
+*   **Coqui TTS**: The Text-to-Speech engine responsible for converting textual responses from the server into audible speech for the user[2].
 
 ## Setup Instructions
 
-1. Create virtual environment
-2. Install dependencies
-3. Set up PostgreSQL database
-4. Run migrations
-5. Start development server
+These instructions will guide you through setting up the backend services on a Windows machine.
+
+### 1. Prerequisites
+Before you begin, ensure you have the following installed:
+*   Python 3.8+
+*   PostgreSQL
+*   Git
+
+### 2. Clone the Repository
+Start by cloning the project repository to your local machine.
+```bash
+git clone 
+cd backend
+```
+
+### 3. Create and Configure Virtual Environments
+This project requires two separate Python virtual environments to manage dependencies without conflicts. One is for the main Flask application (`.venv`), and the other is specifically for the Coqui TTS service (`tts-env`), which has a large and distinct set of libraries.
+
+**What is a virtual environment?** It's an isolated Python environment that allows you to install packages for a specific project without affecting other projects or your system's global Python installation. It's a standard practice in professional development to ensure consistency and avoid dependency issues.
+
+**a. Main Application Environment**
+```powershell
+# Create the virtual environment for the Flask API
+python -m venv .venv
+
+# Activate the virtual environment
+.\.venv\Scripts\activate
+
+# Install the required packages from requirements-API.txt
+pip install -r requirements-API.txt
+```
+
+**b. Text-to-Speech (TTS) Environment**
+Open a **new, separate terminal** for this step.
+```powershell
+# Create the virtual environment for the TTS service
+python -m venv tts-env
+
+# Activate the TTS virtual environment
+.\tts-env\Scripts\activate
+
+# Install the required packages from requirements-tts.txt
+pip install -r requirements-tts.txt
+```
+**Note:** You will now have two terminals open. Keep the first one (`.venv` activated) for running the Flask server and Rasa models, and the second one (`tts-env` activated) for running the TTS server.
+
+### 4. Set Up PostgreSQL Database
+You need to create a database and a user for the application.
+```sql
+-- Connect to PostgreSQL using psql or a GUI tool like pgAdmin
+CREATE DATABASE vocery;
+CREATE USER vocery_user WITH PASSWORD 'your_secure_password';
+ALTER ROLE vocery_user SET client_encoding TO 'utf8';
+ALTER ROLE vocery_user SET default_transaction_isolation TO 'read committed';
+ALTER ROLE vocery_user SET timezone TO 'UTC';
+GRANT ALL PRIVILEGES ON DATABASE vocery TO vocery_user;
+```
+
+### 5. Configure Environment Variables
+The application uses a `.env` file to manage secret keys and configuration settings. Create a file named `.env` in the `backend` directory.
+
+```
+# .env file
+
+# Flask Configuration
+FLASK_APP=run.py
+FLASK_ENV=development
+SECRET_KEY=your-super-strong-secret-key
+JWT_SECRET_KEY=your-super-strong-jwt-secret-key
+
+# Database Configuration
+DATABASE_URL="postgresql://vocery_user:your_secure_password@localhost:5432/vocery"
+
+# AI Services URLs
+RASASERVERURL_EN="http://localhost:5005"
+RASASERVERURL_AR="http://localhost:5006"
+TTSSERVERURL="http://localhost:5002"
+
+# File Storage Configuration
+UPLOAD_FOLDER=app/uploads
+TTS_OUTPUT_DIR=app/tts_output
+```
+
+### 6. Run Database Migrations
+In the terminal with the `.venv` environment activated, run the following commands to set up your database schema.
+```powershell
+# (if .venv is not active) .\.venv\Scripts\activate
+flask db upgrade
+```
+This command applies all the database migrations, creating the necessary tables like `customers`, `products`, etc.
+
+### 7. Start the Development Servers
+To run the full backend, you must start all four services. Each command should be run in a separate terminal window.
+
+**a. Start the Coqui TTS Server**
+*   Terminal: TTS
+*   Active Environment: `tts-env`
+```powershell
+# Activate the environment if needed
+# .\tts-env\Scripts\activate
+
+tts-server --model_name "tts_models/multilingual/multi-dataset/xtts_v2" --port 5002
+```
+
+**b. Start the Rasa English NLU Server**
+*   Terminal: Main App
+*   Active Environment: `.venv`
+```powershell
+# Activate the environment if needed
+# .\.venv\Scripts\activate
+
+rasa run --enable-api --cors "*" -m models\nlu-en.tar.gz --port 5005
+```
+
+**c. Start the Rasa Arabic NLU Server**
+*   Terminal: Main App (New Terminal)
+*   Active Environment: `.venv`
+```powershell
+# Activate the environment if needed
+# .\.venv\Scripts\activate
+
+rasa run --enable-api --cors "*" -m models\nlu-ar.tar.gz --port 5006
+```
+
+**d. Start the Flask Development Server**
+*   Terminal: Main App (New Terminal)
+*   Active Environment: `.venv`
+```powershell
+# Activate the environment if needed
+# .\.venv\Scripts\activate
+
+python run.py
+```
+Your entire backend is now running and ready to accept requests at `http://127.0.0.1:5000`.
 
 ## API Endpoints
 
-Base URL: `http://127.0.0.1:5000/api` (during development)
+Base URL: `http://127.0.0.1:5000/api`
 
-## Authentication Endpoints (`/auth`)
+### Authentication Endpoints (`/auth`)
 
-### 1. User Registration
-
+#### 1. User Registration
 *   **Endpoint:** `POST /auth/register`
 *   **Description:** Registers a new customer.
 *   **Request Body (JSON):**
-    ```
+    ```json
     {
         "name": "string (required)",
         "email": "string (required, unique email)",
@@ -28,312 +166,168 @@ Base URL: `http://127.0.0.1:5000/api` (during development)
         "preferred_language": "string (optional, defaults to 'en')"
     }
     ```
-*   **Example Request Body:**
-    ```
+*   **Responses:** Success (`201 Created`), Error (`400 Bad Request`, `500 Internal Server Error`).
+
+#### 2. User Login
+*   **Endpoint:** `POST /auth/login`
+*   **Description:** Authenticates a user and returns a JSON Web Token (JWT).
+*   **Request Body (JSON):**
+    ```json
     {
+        "email": "string (required)",
+        "password": "string (required)"
+    }
+    ```
+*   **Success Response (200 OK):**
+    ```json
+    {
+        "access_token": "your.jwt.token"
+    }
+    ```
+*   **Error Responses:** `401 Unauthorized`.
+
+#### 3. Get User Profile
+*   **Endpoint:** `GET /auth/profile`
+*   **Description:** Retrieves the profile of the currently authenticated user.
+*   **Authentication:** Required (JWT).
+*   **Success Response (200 OK):**
+    ```json
+    {
+        "customer_id": 1,
         "name": "Jane Doe",
         "email": "jane.doe@example.com",
-        "password": "securepassword123",
         "phone_number": "555-0100",
         "preferred_language": "en"
     }
     ```
-*   **Responses:**
-    *   **Success (201 Created):**
-        ```
-        {
-            "message": "User created successfully",
-            "customer_id": 123 
-        }
-        ```
-    *   **Error (400 Bad Request - Missing Fields):**
-        ```
-        {
-            "error": "Name, email, and password are required" 
-        }
-        ```
-    *   **Error (400 Bad Request - Email Exists):**
-        ```
-        {
-            "error": "Email already registered"
-        }
-        ```
-    *   **Error (400 Bad Request - Not JSON):**
-        ```
-        {
-            "error": "Request body must be JSON"
-        }
-        ```
-    *   **Error (500 Internal Server Error - DB Issue):**
-        ```
-        {
-            "error": "An error occurred while creating the user."
-        }
-        ```
+*   **Error Responses:** `401 Unauthorized`.
 
----
+### Product Endpoints (`/products`)
 
-## Product Endpoints (`/products`)
-
-### 1. List All Active Products
-
+#### 1. List All Active Products
 *   **Endpoint:** `GET /products`
-*   **Description:** Retrieves a list of all active products.
-*   **Query Parameters:** None
-*   **Responses:**
-    *   **Success (200 OK):**
-        ```
-        {
-            "products": [
-                {
-                    "product_id": 1,
-                    "name_en": "Red Apple",
-                    "name_ar": "تفاح أحمر",
-                    "description_en": "Fresh and juicy red apples.",
-                    "description_ar": "تفاح أحمر طازج وعصيري.",
-                    "price": 5.99,
-                    "category_id": 1,
-                    "brand": "FarmFresh",
-                    "stock_quantity": 100,
-                    "unit_type": "kg",
-                    "image_url": "https://example.com/images/red_apple.jpg"
-                },
-                // ... more products
-            ]
-        }
-        ```
-    *   **Error (500 Internal Server Error):**
-        ```
-        {
-            "error": "An error occurred while fetching products."
-        }
-        ```
+*   **Description:** Retrieves a list of all active products with bilingual details.
+*   **Success Response (200 OK):**
+    ```json
+    {
+        "products": [
+            {
+                "product_id": 1,
+                "name_en": "Red Apple",
+                "name_ar": "تفاح أحمر",
+                "price": 5.99,
+                "stock_quantity": 100,
+                // ... other fields
+            }
+        ]
+    }
+    ```
+*   **Error Responses:** `500 Internal Server Error`.
 
-### 2. Search Products
-
+#### 2. Search Products
 *   **Endpoint:** `GET /products/search`
-*   **Description:** Searches for active products based on a query string in either English or Arabic.
+*   **Description:** Searches products by name in English or Arabic.
 *   **Query Parameters:**
     *   `q` (string, required): The search term.
-    *   `language` (string, optional, defaults to 'en'): The language to search in ('en' or 'ar').
+    *   `language` (string, optional, defaults to 'en'): `en` or `ar`.
 *   **Example URL:** `http://localhost:5000/api/products/search?q=apple&language=en`
-*   **Responses:**
-    *   **Success (200 OK):** (Similar structure to List All Products, but filtered)
-        ```
-        {
-            "products": [
-                // ... matching products
-            ]
-        }
-        ```
-    *   **Error (400 Bad Request - Missing Query Parameter):**
-        ```
-        {
-            "error": "Search query parameter 'q' is required."
-        }
-        ```
-    *   **Error (500 Internal Server Error):**
-        ```
-        {
-            "error": "An error occurred during product search."
-        }
-        ```
----
+*   **Responses:** Success (`200 OK`), Error (`400 Bad Request`, `500 Internal Server Error`).
 
-## Cart Endpoints (`/cart`)
+### Cart Endpoints (`/cart`)
+All cart endpoints require JWT authentication.
 
-### 1. Add Item to Cart
-
+#### 1. Add Item to Cart
 *   **Endpoint:** `POST /cart/add`
-*   **Description:** Adds a product to the authenticated user's cart or updates quantity if already present.
-*   **Authentication:** Required (JWT)
-*   **Request Headers:**
-    *   `Authorization: Bearer <access_token>`
-    *   `Content-Type: application/json`
-*   **Request Body (JSON):**
-    ```
-    {
-        "product_id": "integer (required)",
-        "quantity": "integer (optional, defaults to 1)"
-    }
-    ```
-*   **Example Request Body:**
-    ```
-    {
-        "product_id": 1,
-        "quantity": 2
-    }
-    ```
-*   **Success Response (200 OK):**
-    ```
-    {
-        "msg": "'Red Apples' (Qty: 2 requested) processed for cart.",
-        "cart_item_details": {
-            "cart_item_id": 5,
-            "product_id": 1,
-            "product_name": "Red Apples",
-            "updated_quantity_in_cart": 2,
-            "cart_id": 3
-        }
-    }
-    ```
-*   **Error Responses:**
-    *   `400 Bad Request` (e.g., Missing `product_id`, invalid `quantity`, insufficient stock):
-        ```
-        { "msg": "Product ID is required." }
-        // or
-        { "msg": "Insufficient stock for 'Product Name'." }
-        ```
-    *   `401 Unauthorized`: Token issues.
-    *   `404 Not Found` (e.g., Product not found):
-        ```
-        { "msg": "Product with ID X not found." }
-        ```
-    *   `500 Internal Server Error`.
+*   **Description:** Adds a product to the cart or updates its quantity.
+*   **Responses:** Success (`200 OK`), Error (`400 Bad Request`, `401 Unauthorized`, `404 Not Found`).
 
-### 2. View Cart
-
+#### 2. View Cart
 *   **Endpoint:** `GET /cart`
-*   **Description:** Retrieves the contents of the authenticated user's shopping cart.
-*   **Authentication:** Required (JWT)
-*   **Request Headers:**
-    *   `Authorization: Bearer <access_token>`
-*   **Success Response (200 OK - Cart with items):**
-    ```
+*   **Description:** Retrieves the full contents of the user's cart.
+*   **Responses:** Success (`200 OK`), Error (`401 Unauthorized`, `500 Internal Server Error`).
+
+#### 3. Update Cart Item Quantity
+*   **Endpoint:** `PUT /cart/items/`
+*   **Description:** Updates an item's quantity. Setting quantity to 0 removes the item.
+*   **Responses:** Success (`200 OK`), Error (`400`, `401`, `403 Forbidden`, `404`).
+
+#### 4. Remove Item from Cart
+*   **Endpoint:** `DELETE /cart/items/`
+*   **Description:** Removes an item from the cart entirely.
+*   **Responses:** Success (`200 OK`), Error (`401`, `403`, `404`).
+
+#### 5. Checkout
+*   **Endpoint:** `POST /cart/checkout`
+*   **Description:** Places an order from the cart contents.
+*   **Responses:** Success (`201 Created`), Error (`400`, `401`, `500`).
+
+### Order Endpoints (`/orders`)
+All order endpoints require JWT authentication.
+
+#### 1. List User's Order History
+*   **Endpoint:** `GET /orders`
+*   **Description:** Retrieves a list of all past orders for the authenticated user.
+*   **Success Response (200 OK):**
+    ```json
     {
-        "cart_id": 3,
-        "customer_id": 1,
+        "orders": [
+            {
+                "order_id": 101,
+                "order_date": "2025-07-03T18:00:00",
+                "status": "completed",
+                "total_amount": 55.99
+            }
+        ]
+    }
+    ```
+*   **Error Responses:** `401 Unauthorized`, `500 Internal Server Error`.
+
+#### 2. Get Specific Order Details
+*   **Endpoint:** `GET /orders/`
+*   **Description:** Retrieves detailed information for a single order, including all items.
+*   **Success Response (200 OK):**
+    ```json
+    {
+        "order_id": 101,
+        "order_date": "2025-07-03T18:00:00",
+        "status": "completed",
+        "total_amount": 55.99,
         "items": [
             {
-                "cart_item_id": 5,
-                "product_id": 1,
-                "name_en": "Red Apples",
-                "name_ar": "تفاح أحمر",
-                "price_per_unit": 5.99,
+                "product_name_en": "Red Apple",
+                "product_name_ar": "تفاح أحمر",
                 "quantity": 2,
-                "unit_type": "kg",
-                "image_url": "https://example.com/images/red_apple.jpg",
-                "subtotal": 11.98
+                "price_at_purchase": 5.99
             }
-            // ... more items
-        ],
-        "total_price": 11.98
+        ]
     }
     ```
-*   **Success Response (200 OK - Empty Cart):**
-    ```
-    {
-        "cart_id": 3, // Or null
-        "msg": "Your shopping cart is empty.",
-        "items": [],
-        "total_price": 0.0
-    }
-    ```
-*   **Error Responses:**
-    *   `401 Unauthorized`: Token issues.
-    *   `500 Internal Server Error`.
+*   **Error Responses:** `401 Unauthorized`, `403 Forbidden`, `404 Not Found`.
 
-### 3. Update Cart Item Quantity
+### Voice Processing Endpoints (`/voice`)
+These endpoints manage the core voice interaction pipeline.
 
-*   **Endpoint:** `PUT /cart/items/<int:cart_item_id>`
-*   **Description:** Updates the quantity of a specific item in the cart. If quantity is 0, the item is removed.
-*   **Authentication:** Required (JWT)
-*   **Request Headers:**
-    *   `Authorization: Bearer <access_token>`
-    *   `Content-Type: application/json`
-*   **Request Body (JSON):**
-    ```
-    {
-        "quantity": "integer (required, new desired quantity, >= 0)"
-    }
-    ```
-*   **Example Request Body (Set quantity to 1):**
-    ```
-    {
-        "quantity": 1
-    }
-    ```
-*   **Success Response (200 OK - Quantity Updated):**
-    ```
-    {
-        "msg": "Quantity for cart item ID 5 updated to 1.",
-        "cart_item_details": {
-            "cart_item_id": 5,
-            "product_id": 1,
-            "product_name": "Red Apples",
-            "new_quantity": 1,
-            "cart_id": 3
-        }
-    }
-    ```
-*   **Success Response (200 OK - Item Removed due to Quantity 0):**
-    ```
-    {
-        "msg": "Cart item with ID 5 removed as quantity set to 0."
-    }
-    ```
-*   **Error Responses:**
-    *   `400 Bad Request` (e.g., Missing/invalid `quantity`, insufficient stock).
-    *   `401 Unauthorized`: Token issues.
-    *   `403 Forbidden`: Item not in user's cart.
-    *   `404 Not Found`: `cart_item_id` not found.
-    *   `500 Internal Server Error`.
-
-### 4. Remove Item from Cart
-
-*   **Endpoint:** `DELETE /cart/items/<int:cart_item_id>`
-*   **Description:** Completely removes a specific item from the authenticated user's cart.
-*   **Authentication:** Required (JWT)
-*   **Request Headers:**
-    *   `Authorization: Bearer <access_token>`
+#### 1. Process Voice Command
+*   **Endpoint:** `POST /voice/process`
+*   **Description:** The main endpoint for handling voice commands. It takes an audio file, transcribes it to text (ASR), understands the intent (NLU), executes the required action (e.g., add to cart), generates a text response, and converts that response back to audio (TTS).
+*   **Authentication:** Required (JWT).
+*   **Request:** `multipart/form-data` with an audio file (`.wav`, `.mp3`).
 *   **Success Response (200 OK):**
-    ```
+    ```json
     {
-        "msg": "Cart item with ID 5 removed successfully."
+        "nlu_result": {
+            "intent": "search_product",
+            "confidence": 0.98
+        },
+        "transcript": "search for apples",
+        "response_text": "I found 3 types of apples. Which one would you like?",
+        "audio_filename": "response-some-uuid.mp3",
+        "detected_language": "en"
     }
     ```
-*   **Error Responses:**
-    *   `401 Unauthorized`: Token issues.
-    *   `403 Forbidden`: Item not in user's cart.
-    *   `404 Not Found`: `cart_item_id` not found.
-    *   `500 Internal Server Error`.
+*   **Error Responses:** `400`, `401`, `500`.
 
-### 5. Checkout (Place Order)
-
-*   **Endpoint:** `POST /cart/checkout`
-*   **Description:** Converts the user's cart into an order, updates stock, and clears the cart.
-*   **Authentication:** Required (JWT)
-*   **Request Headers:**
-    *   `Authorization: Bearer <access_token>`
-    *   `Content-Type: application/json` (Body can be empty `{}` for this version)
-*   **Request Body (JSON):**
-    ```
-    {} // Empty for now
-    ```
-*   **Success Response (201 Created):**
-    ```
-    {
-        "msg": "Order placed successfully!",
-        "order_id": 101,
-        "total_amount": 55.99,
-        "status": "pending"
-    }
-    ```
-*   **Error Responses:**
-    *   `400 Bad Request` (e.g., Cart empty, insufficient stock during final check).
-        ```
-        { "msg": "Your shopping cart is empty. Cannot proceed to checkout." }
-        // or
-        { "msg": "Checkout process failed.", "error_details": "Insufficient stock for 'Product Name'." }
-        ```
-    *   `401 Unauthorized`: Token issues.
-    *   `500 Internal Server Error`.
-
----
-
-### Next Steps: Order Endpoints
-
-Future development will include endpoints for:
-
-*   Listing a user's order history.
-*   Retrieving details for a specific order.
+#### 2. Retrieve Response Audio
+*   **Endpoint:** `GET /voice/audio/`
+*   **Description:** Serves the generated audio response file created by the `/voice/process` endpoint. The mobile client calls this to play the response to the user.
+*   **Response:** The audio file (`audio/mpeg`).
